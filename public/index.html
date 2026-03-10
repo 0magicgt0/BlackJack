@@ -1409,35 +1409,8 @@ function openChoiceDealer(idx){
 }
 
 // ── NON-DEALER CLICK MODE ──
-function dealerDeckClick(){
-  playSound('deal');
-  if(phase==='waitDraw'){
-    dealerHand.push(draw());
-    phase='wave1';curP=1;
-    renderDealer();updateDeck();
-    setStatus('Раздача 1-й волны');
-    setAction(`Раздай карту "${players[1].name}"`);
-  } else if(phase==='wave1'){
-    players[curP].hand.push(draw());
-    curP++;renderPlayers();updateDeck();
-    if(curP>=players.length){
-      phase='wave2';curP=1;
-      setStatus('Раздача 2-й волны');
-      setAction(`Раздай 2-ю карту "${players[1].name}"`);
-    } else setAction(`Раздай карту "${players[curP].name}"`);
-  } else if(phase==='wave2'){
-    players[curP].hand.push(draw());
-    curP++;renderPlayers();updateDeck();
-    if(curP>=players.length){
-      const hc=draw();hc.hidden=true;dealerHiddenCard=hc;dealerHand.push(hc);
-      renderDealer();
-      phase='playerTurns';curP=1;
-      setStatus(`Ход: ${players[1].name}`,true);
-      setAction(`Кликни на "${players[1].name}"`);
-      enableClick();
-    } else setAction(`Раздай 2-ю карту "${players[curP].name}"`);
-  }
-}
+function dealerDeckClick(){} // This function is for demo mode and should do nothing in multiplayer for a player.
+
 
 function enableClick(){
   renderPlayers();
