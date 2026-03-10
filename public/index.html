@@ -314,7 +314,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 
 
 /* ── AVATAR SPEECH BUBBLE ── */
-.avatar-bubble-wrap{position:fixed;bottom:120px;right:24px;z-index:10005;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+.avatar-bubble-wrap{position:fixed;bottom:90px;right:16px;z-index:10005;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
 .avatar-bubble{background:var(--surface2);border:1px solid var(--border2);border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;font-weight:500;color:var(--text);max-width:220px;line-height:1.4;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:bubblePop .3s cubic-bezier(.34,1.56,.64,1)}
 @keyframes bubblePop{from{opacity:0;transform:scale(.7) translateY(10px)}to{opacity:1;transform:none}}
 .avatar-bubble.fading{animation:bubbleFade .5s ease forwards}
@@ -450,7 +450,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
     </div>
     <label class="form-label">Код лобби</label>
     <div class="code-block">
-      <span class="code-val" id="lobbyCodeText">XXXX-XXXX</span>
+      <span class="code-val" id="lobbyCodeText" onclick="revealCode()" title="Нажми чтобы показать">XXXX-XXXX</span>
       <button class="code-copy-btn" onclick="copyCode()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Скопировать
@@ -683,19 +683,17 @@ let bubbleWrap=null;
 function startAvatarBubbles(){
   if(bubbleActive) return;
   bubbleActive=true;
-  // Create container
+  // Create bubble container above sunWrap
   bubbleWrap=document.createElement('div');
   bubbleWrap.className='avatar-bubble-wrap';
   bubbleWrap.id='avatarBubbleWrap';
-  // Add avatar image (same as sun photo)
-  const img=document.getElementById('sunImg');
-  if(img){
-    const av=document.createElement('img');
-    av.className='avatar-face';
-    av.src=img.src;
-    bubbleWrap.appendChild(av);
+  // Insert BEFORE sunWrap in DOM (so bubbles appear above the sun avatar)
+  const sw=document.getElementById('sunWrap');
+  if(sw&&sw.parentNode){
+    sw.parentNode.insertBefore(bubbleWrap,sw);
+  } else {
+    document.body.appendChild(bubbleWrap);
   }
-  document.body.appendChild(bubbleWrap);
   scheduleBubble();
 }
 
@@ -905,13 +903,14 @@ function changeCount(d){
   clearTimeout(botTimer);
   if(demoMode) simulateBots(); else {currentBots=1;updateWaiting();}
 }
+function revealCode(){
+  const el=document.getElementById('lobbyCodeText');
+  el.classList.toggle('show');
+}
 function copyCode(){
   playSound('toast');
-  const el=document.getElementById('lobbyCodeText');
-  el.classList.add('show');
   navigator.clipboard.writeText(lobbyCode).catch(()=>{});
-  showToast('Скопировано: '+lobbyCode,'success');
-  setTimeout(()=>el.classList.remove('show'),2800);
+  showToast('Скопировано!','success');
 }
 function simulateBots(){
   currentBots=1;updateWaiting();
@@ -931,7 +930,7 @@ function joinLobby(){
   const v=document.getElementById('joinCodeInput').value.trim();
   if(v.length<4){showToast('Введи код лобби','error');return}
   closeModal('joinModal');
-  showToast('Подключение...','success');
+  showToast('Подключение к лобби...','success');
   setTimeout(()=>{lobbyPlayerCount=3;startGame(false)},900);
 }
 function formatJoinCode(el){
@@ -1011,12 +1010,20 @@ function initGame(){
   dealerHand=[];dealerHiddenCard=null;curP=0;phase='idle';
   dragActive=false;dragTargetPlayer=-1;
 
-  // Build players: player[0] = dealer/you, rest = opponents
-  const names=['Вы (Дилер)','Alex','Boris','Karina','Dmitry','Emma','Fedor','Gena'];
-  players=Array.from({length:lobbyPlayerCount},(_,i)=>({
-    name:i===0?(isDealer?'Вы (Дилер)':names[i]):names[i]||`P${i+1}`,
-    hand:[],status:'playing',isDealer:i===0
-  }));
+  // Build players: player[0] = dealer (NPC in player mode, YOU in dealer mode)
+  const botNames=['Alex','Boris','Karina','Dmitry','Emma','Fedor','Gena'];
+  players=Array.from({length:lobbyPlayerCount},(_,i)=>{
+    let name;
+    if(isDealer){
+      name=i===0?'Вы (Дилер)':botNames[i-1]||`P${i}`;
+    } else {
+      // player mode: index 0 = NPC dealer, index 1 = you, rest = bots
+      if(i===0)name='Дилер';
+      else if(i===1)name='Вы';
+      else name=botNames[i-1]||`P${i}`;
+    }
+    return {name,hand:[],status:'playing',isDealer:i===0};
+  });
 
   setupDealerUI();
   renderGame();
@@ -1238,6 +1245,7 @@ function onDropToPlayer(playerIdx){
 }
 
 function dealCardToPlayer(playerIdx){
+  playSound('deal');
   const p=players[playerIdx];
 
   // Phase logic for dealer mode
@@ -1326,6 +1334,7 @@ function openChoiceDealer(idx){
 
 // ── NON-DEALER CLICK MODE ──
 function dealerDeckClick(){
+  playSound('deal');
   if(phase==='waitDraw'){
     dealerHand.push(draw());
     phase='wave1';curP=1;
@@ -1380,7 +1389,7 @@ function playerChoice(action){
       // Highlight the target
       highlightDrop(curP);
     } else {
-      p.hand.push(draw());renderPlayers();updateDeck();
+      playSound('deal');p.hand.push(draw());renderPlayers();updateDeck();
       const s=calcScore(p.hand);
       if(s>21){p.status='bust';renderPlayers();setStatus(`${p.name}: перебор!`,false);setTimeout(nextPlayer,700)}
       else{setAction(`Кликни на "${p.name}" — HIT или STAND?`);enableClick()}
