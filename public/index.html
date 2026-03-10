@@ -460,7 +460,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
       <div class="waiting-dots"><span></span><span></span><span></span></div>
       <span id="waitingText">Ожидание игроков...</span>
     </div>
-    <button class="btn btn-primary" id="startGameBtn" onclick="startGame(true)" disabled>
+    <button class="btn btn-primary" id="startGameBtn" onclick="sendStartGame()" disabled>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7L8 5z"/></svg>
       Начать игру (Вы — Дилер)
     </button>
@@ -602,6 +602,83 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 <div class="toast" id="toast"></div>
 
 <script>
+// ── WEBSOCKET ──
+let ws;
+let myPlayerIdx = -1;
+let myName = `Игрок${Math.floor(Math.random() * 100)}`; // Простое имя по умолчанию
+
+function initWS() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    ws = new WebSocket(`${protocol}//${host}`);
+
+    ws.onopen = () => { console.log('WebSocket connected'); };
+
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        console.log('Received:', msg);
+        handleServerMessage(msg);
+    };
+
+    ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        showToast('Соединение с сервером потеряно', 'error');
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        showToast('Ошибка соединения с сервером', 'error');
+    };
+}
+
+function sendToServer(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+    } else {
+        showToast('Нет соединения с сервером', 'error');
+    }
+}
+
+function handleServerMessage(msg) {
+    switch (msg.type) {
+        case 'created':
+            lobbyCode = msg.code;
+            lobbyPlayerCount = msg.playerCount;
+            document.getElementById('lobbyCodeText').textContent = lobbyCode;
+            document.getElementById('countDisplay').textContent = lobbyPlayerCount;
+            currentBots = 1;
+            updateWaiting();
+            isDealer = true;
+            myPlayerIdx = 0;
+            document.getElementById('createModal').classList.add('open');
+            break;
+        case 'joined':
+            isDealer = false;
+            myPlayerIdx = msg.playerIdx;
+            lobbyCode = msg.code;
+            lobbyPlayerCount = msg.playerCount;
+            closeModal('joinModal');
+            showToast('Вы в лобби! Ожидание начала игры...', 'success');
+            showScreen('screen-loading'); // Показываем экран загрузки в ожидании
+            break;
+        case 'player_joined':
+            currentBots = msg.connected;
+            updateWaiting();
+            break;
+        case 'game_start':
+            lobbyPlayerCount = msg.playerCount;
+            startGame(isDealer);
+            break;
+        case 'room_closed':
+            showToast(msg.reason, 'error');
+            closeModal('createModal');
+            showScreen('screen-lobby');
+            break;
+        case 'error':
+            showToast(msg.msg, 'error');
+            break;
+    }
+}
 // ── CLOUDS ──
 (function(){
   const bg=document.getElementById('cloudsBg');
@@ -884,14 +961,8 @@ function genCode(){
   return s;
 }
 function openCreateModal(){
-  lobbyCode=genCode();
-  document.getElementById('lobbyCodeText').textContent=lobbyCode;
-  document.getElementById('lobbyCodeText').classList.remove('show');
-  document.getElementById('countDisplay').textContent=lobbyPlayerCount;
-  demoMode=document.getElementById('demoToggle')?.checked ?? true;
-  document.getElementById('createModal').classList.add('open');
+  sendToServer({ type: 'create', playerCount: lobbyPlayerCount, name: myName });
   playSound('open');
-  if(demoMode) simulateBots(); else {currentBots=1;updateWaiting();}
 }
 function openJoinModal(){document.getElementById('joinModal').classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open');clearTimeout(botTimer);playSound('close');}
@@ -927,11 +998,9 @@ function updateWaiting(){
   document.getElementById('startGameBtn').disabled=currentBots<2;
 }
 function joinLobby(){
-  const v=document.getElementById('joinCodeInput').value.trim();
-  if(v.length<4){showToast('Введи код лобби','error');return}
-  closeModal('joinModal');
-  showToast('Подключение к лобби...','success');
-  setTimeout(()=>{lobbyPlayerCount=3;startGame(false)},900);
+  const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+  if(code.length < 9){showToast('Неверный формат кода (XXXX-XXXX)','error');return}
+  sendToServer({ type: 'join', code: code, name: myName });
 }
 function formatJoinCode(el){
   let v=el.value.replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,8);
@@ -961,6 +1030,10 @@ function buildLoadScreen(){
   });
 }
 
+function sendStartGame() {
+    sendToServer({ type: 'start' });
+}
+
 function startGame(dealerMode){
   isDealer=dealerMode;
   closeModal('createModal');
@@ -974,7 +1047,10 @@ function startGame(dealerMode){
       setTimeout(()=>document.getElementById('lc'+n).classList.add('done'),550);
     },d))(i,delay);
   }
-  setTimeout(()=>{initGame();showScreen('screen-game')},delay+800);
+  setTimeout(()=>{
+    initGame();
+    showScreen('screen-game');
+  },delay+800);
 }
 
 // ── GAME ENGINE ──
@@ -1689,6 +1765,7 @@ function playSound(type){
 // Attach sounds to all interactive elements
 document.addEventListener('DOMContentLoaded',()=>{
   initSun();
+  initWS();
   const eb=document.getElementById('enterBtn');
   if(eb) eb.addEventListener('click',()=>{playSound('click');showScreen('screen-lobby');});
   document.querySelectorAll('button,input,.action-card').forEach(el=>{
