@@ -520,7 +520,10 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
   <div class="wait-panel">
     <div class="wait-title" id="waitTitle">Ожидание игроков</div>
     <div class="wait-sub" id="waitSub">Отправь код друзьям</div>
-    <div class="wait-code" id="waitCode" onclick="copyCode()">XXXX-XXXX</div>
+    <div class="code-block">
+      <input class="code-val" id="waitCodeInput" readonly value="Генерация ссылки..." style="font-size: 15px; letter-spacing: .05em; background: transparent; border: none; outline: none; width: 100%;"/>
+      <button class="code-copy-btn" onclick="copyCode()">Копировать</button>
+    </div>
     <div class="player-list" id="playerList"></div>
     <div class="start-btn-wrap" id="dealerStartWrap" style="display:none">
       <button class="btn btn-primary" id="startGameBtn" onclick="dealerStartGame()" disabled>
@@ -1296,9 +1299,18 @@ function changeCount(d) {
   document.getElementById('countDisplay').textContent = lobbyPlayerCount;
 }
 function formatJoinCode(el) {
-  let v = el.value.replace(/[^A-Z0-9]/gi,'').toUpperCase().slice(0,8);
-  if (v.length > 4) v = v.slice(0,4) + '-' + v.slice(4);
-  el.value = v;
+  let v = el.value.trim();
+  // Try to extract code from a pasted URL
+  const match = v.match(/[?&]join=([A-Z0-9]{4}-[A-Z0-9]{4})/i);
+  if (match && match[1]) {
+    el.value = match[1].toUpperCase();
+    return;
+  }
+
+  // Otherwise, format as typed
+  v = v.replace(/[^A-Z0-9-]/gi, '').toUpperCase();
+  if (v.length > 4 && v.charAt(4) !== '-') v = v.slice(0,4) + '-' + v.slice(4);
+  el.value = v.slice(0, 9);
 }
 
 function createLobby() {
@@ -1379,8 +1391,11 @@ function updateWaitingRoom(room) {
 }
 
 function copyCode() {
-  navigator.clipboard.writeText(myCode).catch(() => {});
-  showToast('Код скопирован: ' + myCode, 'success');
+  const input = document.getElementById('waitCodeInput');
+  input.select();
+  input.setSelectionRange(0, 99999); // For mobile
+  navigator.clipboard.writeText(input.value).catch(() => {});
+  showToast('Ссылка на лобби скопирована!', 'success');
 }
 
 function dealerStartGame() {
