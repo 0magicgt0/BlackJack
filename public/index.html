@@ -1952,13 +1952,13 @@ function activatePartyMode() {
   const txt = document.createElement('div');
   txt.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(40px,8vw,80px);font-weight:900;text-align:center;z-index:10000;pointer-events:none;animation:partyText 0.3s ease-in-out infinite alternate;text-shadow:0 0 30px #ff00ff,0 0 60px #00ffff;color:#fff;white-space:nowrap;font-family:var(--font);`;
   txt.id = 'partyTxt0';
-  txt.innerHTML = '🎉 PARTY MODE 🎉<br><span style="font-size:0.5em;letter-spacing:.1em;color:#ffff00;">кликни ☀️ чтобы выключить</span>';
+  txt.innerHTML = '🎉 67 MODE 🎉<br><span style="font-size:0.5em;letter-spacing:.1em;color:#ffff00;">чтобы вернуться нажми на солнце, ещё раз</span>';
   document.body.appendChild(txt);
   document.body.appendChild(party);
 
   const yt = document.createElement('div');
   yt.id = 'ytPlayerWrap';
-  yt.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:240px;height:135px;';
+  yt.style.cssText = 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:240px;height:135px;';
   yt.innerHTML = `<iframe id="ytPlayer" src="https://www.youtube.com/embed/yo5CILhgvT4?autoplay=1&loop=1&playlist=yo5CILhgvT4&controls=0&modestbranding=1" width="100%" height="100%" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
   document.body.appendChild(yt);
 
