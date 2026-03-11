@@ -128,7 +128,8 @@ wss.on('connection', (ws) => {
         ws.role = 'dealer';
         ws.playerIdx = 0;
         ws.playerName = msg.name || 'Дилер';
-        send(ws, { type: 'created', code, playerCount: rooms[code].playerCount });
+        const allPlayers = [{ name: ws.playerName, isDealer: true }];
+        send(ws, { type: 'created', code, playerCount: rooms[code].playerCount, players: allPlayers });
         console.log(`[CREATE] Room ${code} by ${ws.playerName}`);
         break;
       }
@@ -148,9 +149,11 @@ wss.on('connection', (ws) => {
         ws.playerName = msg.name || `Игрок ${idx}`;
         r.players.push(ws);
 
-        send(ws, { type: 'joined', code, playerIdx: idx, playerCount: r.playerCount });
-        broadcast(code, { type: 'player_joined', playerIdx: idx, name: ws.playerName, connected: r.players.length + 1, playerCount: r.playerCount });
-        console.log(`[JOIN] ${ws.playerName} joined room ${code} (${r.players.length}/${r.playerCount - 1} players)`);
+        const allPlayers = [r.dealer, ...r.players].map(p => ({ name: p.playerName, isDealer: p.role === 'dealer' }));
+
+        send(ws, { type: 'joined', code, playerIdx: idx, playerCount: r.playerCount, players: allPlayers });
+        broadcast(code, { type: 'lobby_update', players: allPlayers, playerCount: r.playerCount }, ws);
+        console.log(`[JOIN] ${ws.playerName} joined room ${code} (${allPlayers.length}/${r.playerCount} players)`);
         break;
       }
 
@@ -159,7 +162,10 @@ wss.on('connection', (ws) => {
         const r = rooms[ws.roomCode];
         if (!r || ws.role !== 'dealer') return;
         r.started = true;
-        r.phase = 'deal-self';
+        r.phase = 'deal-self'; // This phase management should ideally be on the dealer's client
+        
+        // The server just notifies clients that the game is starting.
+        // The dealer's client will then drive the game logic.
         broadcast(ws.roomCode, { type: 'game_start', phase: r.phase, playerCount: r.playerCount });
         console.log(`[START] Room ${ws.roomCode}`);
         break;
@@ -200,11 +206,12 @@ wss.on('connection', (ws) => {
     } else {
       // Player left
       r.players = r.players.filter(p => p !== ws);
+      const allPlayers = [r.dealer, ...r.players].map(p => ({ name: p.playerName, isDealer: p.role === 'dealer' }));
       broadcast(code, {
         type: 'player_left',
         playerIdx: ws.playerIdx,
         name: ws.playerName,
-        connected: r.players.length + 1,
+        players: allPlayers,
       });
     }
   });
