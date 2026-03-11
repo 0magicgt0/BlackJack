@@ -358,6 +358,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
         </div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </button>
+      <button class="action-card" onclick="startDemoMode()" style="border-color:var(--gold);background:var(--gold-bg)">
+        <div class="action-card-icon" style="background:var(--gold-bg);border-color:var(--gold)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <div style="flex:1">
+          <div class="action-card-title" style="color:var(--gold)">Демо-режим</div>
+          <div class="action-card-desc">Один игрок + 3 бота, сразу в игру</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
     </div>
   </div>
 </div>
@@ -412,7 +422,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
         Начать игру
       </button>
       <div class="demo-toggle-row">
-        <div class="toggle-label">Боты для пустых мест</div>
+        <div class="toggle-label">Заполнить пустые места ботами</div>
         <label class="toggle-switch">
           <input type="checkbox" id="demoToggle" checked>
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -715,12 +725,12 @@ function serverHandle(msg) {
     if (room.dealerTabId !== from) { broadcastTo(from, { type: 'ERROR', msg: 'Только дилер может начать' }); return; }
     if (room.players.length < 2 && !payload.allowBots) { broadcastTo(from, { type: 'ERROR', msg: 'Нужно минимум 2 игрока' }); return; }
 
-    // Fill with bots if demo mode
-    if (payload.demoMode) {
-      const botNames = ['Alex','Boris','Karina','Dmitry','Emma','Fedor','Gena','Hans'];
+    // Fill empty seats with bots (always, to ensure playable game)
+    {
+      const botNames = ['Алекс','Борис','Карина','Дима','Эмма','Фёдор','Гена','Ганс'];
       while (room.players.length < room.maxPlayers) {
         const idx = room.players.length;
-        room.players.push({ tabId: 'bot-' + idx, name: botNames[idx - 1] || 'Bot' + idx, hand: [], status: 'playing', isDealer: false, idx, isBot: true });
+        room.players.push({ tabId: 'bot-' + idx, name: botNames[idx - 1] || ('Бот' + idx), hand: [], status: 'playing', isDealer: false, idx, isBot: true });
       }
     }
 
@@ -1002,12 +1012,19 @@ function publicRoom(room) {
 }
 
 function broadcastRoom(room, msg) {
-  // Broadcast to all tabs
-  bc.postMessage({ ...msg, _roomCode: room.code });
+  const m = { ...msg, _roomCode: room.code, _fromServer: true };
+  bc.postMessage(m);
+  // BroadcastChannel doesn't deliver to self, so call clientHandle directly
+  if (myCode === room.code) clientHandle(m);
 }
 
 function broadcastTo(tabId, msg) {
-  bc.postMessage({ ...msg, _to: tabId });
+  if (tabId === MY_TAB_ID) {
+    // Deliver directly to self (BroadcastChannel doesn't loop back)
+    clientHandle({ ...msg, _to: tabId });
+  } else {
+    bc.postMessage({ ...msg, _to: tabId });
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -1017,22 +1034,21 @@ let gameState = null; // local mirror of room state
 
 bc.onmessage = (e) => {
   const msg = e.data;
-  // Route: either targeted to me, or broadcast to room I'm in
+  // BroadcastChannel only delivers from OTHER tabs - never self
   const targeted = msg._to && msg._to === MY_TAB_ID;
   const inRoom = msg._roomCode && msg._roomCode === myCode;
-  if (!targeted && !inRoom) {
-    // Maybe this is a server message we (as host) need to handle
-    serverHandle(msg);
-    return;
-  }
+  const fromServer = msg._fromServer === true; // server broadcasts - don't re-process
+
   if (targeted || inRoom) {
     clientHandle(msg);
+    // If we're host, also process as server (e.g. PLAYER_ACTION from other tabs)
+    // But never re-process our own server broadcasts
+    if (amHost && !fromServer && (inRoom || targeted)) serverHandle(msg);
+    return;
   }
-  // Also let server handle if we're host
-  if (amHost && (inRoom || !msg._to)) {
-    // serverHandle already called above for non-targeted
-    if (targeted) serverHandle(msg);
-  }
+
+  // Not targeted to us — server command from another tab (e.g. CREATE/JOIN when we're host)
+  if (amHost && !fromServer) serverHandle(msg);
 };
 
 function clientHandle(msg) {
@@ -1042,7 +1058,14 @@ function clientHandle(msg) {
       myPlayerIdx = msg.playerIdx;
       myRole = 'dealer';
       closeModal('createModal');
-      showWaitingRoom();
+      if (window._pendingDemo) {
+        window._pendingDemo = false;
+        // Auto-start demo: immediately send START with bots
+        showToast('Запуск демо-режима...', 'success');
+        setTimeout(() => sendToServer({ type: 'START', payload: { demoMode: true, allowBots: true } }), 100);
+      } else {
+        showWaitingRoom();
+      }
       break;
 
     case 'JOINED':
@@ -1129,9 +1152,13 @@ function clientHandle(msg) {
 
 // ─── Send to server (via broadcast, host will pick it up) ───
 function sendToServer(msg) {
-  bc.postMessage({ ...msg, from: MY_TAB_ID, code: myCode, _to: null });
-  // If WE are the host, handle immediately too
-  if (amHost) serverHandle({ ...msg, from: MY_TAB_ID, code: myCode });
+  const full = { ...msg, from: MY_TAB_ID, code: myCode, _to: null };
+  if (amHost) {
+    // We are the host — handle directly (BroadcastChannel doesn't deliver to self)
+    serverHandle(full);
+  } else {
+    bc.postMessage(full);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -1160,6 +1187,12 @@ function createLobby() {
   const name = document.getElementById('createName').value.trim() || 'Дилер';
   myName = name;
   sendToServer({ type: 'CREATE', payload: { name, maxPlayers: lobbyPlayerCount } });
+}
+
+function startDemoMode() {
+  myName = 'Дилер';
+  window._pendingDemo = true;
+  sendToServer({ type: 'CREATE', payload: { name: 'Дилер', maxPlayers: 4 } });
 }
 
 function joinLobby() {
@@ -1224,7 +1257,7 @@ function updateWaitingRoom(room) {
 
   // Enable start if 2+ players
   const startBtn = document.getElementById('startGameBtn');
-  if (startBtn) startBtn.disabled = room.players.length < 2;
+  if (startBtn) startBtn.disabled = false; // Always allow start (bots fill empty spots)
 }
 
 function copyCode() {
