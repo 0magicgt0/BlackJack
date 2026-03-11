@@ -151,7 +151,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .score-chip.bust{border-color:var(--red);color:var(--red)}
 .score-chip.bj{border-color:var(--accent2);color:var(--accent2)}
 .cards-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:flex-end;min-height:90px}
-
+.p-cards{position:relative}
 /* DEALER ZONE */
 .zone-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px}
 .dealer-score-row{display:flex;align-items:center;gap:10px;min-height:36px}
@@ -195,7 +195,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 /* PLAYER ACTIONS (+/-) */
 .p-actions {
     position: absolute;
-    top: -22px;
+    top: -42px;
     left: 50%;
     transform: translateX(-50%);
     display: none;
@@ -954,9 +954,9 @@ function startPlayerTurn(room) {
         setTimeout(() => startPlayerTurn(getRoom(code)), 600);
       }
     }, 800 + Math.random() * 600);
-    broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx: idx, playerName: player.name, isBot: true });
+    broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx: idx, playerName: player.name, isBot: true, room: publicRoom(room) });
   } else {
-    broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx: idx, playerName: player.name, isBot: false });
+    broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx: idx, playerName: player.name, isBot: false, room: publicRoom(room) });
   }
 }
 
@@ -1379,11 +1379,13 @@ function createSeat(p) {
     const seat = document.createElement('div');
     seat.className = classes;
     seat.id = 'seat-' + p.idx;
-    seat.innerHTML = `<div class="p-actions">
-        <button class="p-action-btn pa-hit" title="HIT - Ещё карту" onclick="sendPlayerAction('hit')">+</button>
-        <button class="p-action-btn pa-stand" title="STAND - Хватит" onclick="sendPlayerAction('stand')">&minus;</button>
-      </div><div class="p-name">${escHtml(p.name)}</div>
-      <div class="p-cards" id="pc-${p.idx}"></div>
+    seat.innerHTML = `<div class="p-name">${escHtml(p.name)}</div>
+      <div class="p-cards" id="pc-${p.idx}">
+        <div class="p-actions">
+          <button class="p-action-btn pa-hit" title="HIT - Ещё карту" onclick="sendPlayerAction('hit')">+</button>
+          <button class="p-action-btn pa-stand" title="STAND - Хватит" onclick="sendPlayerAction('stand')">&minus;</button>
+        </div>
+      </div>
       <div class="p-score-row"><div class="p-score ${sc}">${s || '—'}</div></div>
       ${badge}`;
 
