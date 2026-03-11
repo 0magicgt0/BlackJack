@@ -335,6 +335,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .toggle-switch input:checked+.toggle-track{background:var(--accent)}
 .toggle-thumb{position:absolute;height:16px;width:16px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .toggle-switch input:checked+.toggle-track .toggle-thumb{transform:translateX(18px)}
+
+/* SUN */
+.sun-wrap{position:fixed;bottom:30px;right:30px;z-index:50;pointer-events:none;animation:sunFloat 5s ease-in-out infinite}
+.sun-svg{width:64px;height:64px;animation:sunSpin 20s linear infinite}
+@keyframes sunFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes sunSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -560,6 +566,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 <div class="round-end-popup" id="roundEndPopup">
   <div class="rep-title" id="repTitle">Раунд завершён — подведение итогов...</div>
   <div class="rep-bar"><div class="rep-fill" id="repFill"></div></div>
+</div>
+
+<div class="sun-wrap" id="sunWrap">
+  <svg class="sun-svg" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="32" r="12" fill="#7c5cfc" opacity=".9"/>
+    <g stroke="#9b7dff" stroke-width="2.5" stroke-linecap="round">
+      <line x1="32" y1="4" x2="32" y2="12"/><line x1="32" y1="52" x2="32" y2="60"/>
+      <line x1="4" y1="32" x2="12" y2="32"/><line x1="52" y1="32" x2="60" y2="32"/>
+      <line x1="12.7" y1="12.7" x2="18.5" y2="18.5"/><line x1="45.5" y1="45.5" x2="51.3" y2="51.3"/>
+      <line x1="51.3" y1="12.7" x2="45.5" y2="18.5"/><line x1="18.5" y1="45.5" x2="12.7" y2="51.3"/>
+    </g>
+    <circle cx="32" cy="32" r="12" fill="url(#sg)" opacity=".6"/>
+    <defs><radialGradient id="sg" cx="40%" cy="35%"><stop offset="0%" stop-color="#c4b0ff"/><stop offset="100%" stop-color="#5b3fc8"/></radialGradient></defs>
+  </svg>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1541,8 +1561,8 @@ function onDropToPlayer(playerIdx) {
     }
     sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: playerIdx } });
   } else if (phase === 'player-turns' && playerIdx === gameState.currentPlayerIdx) {
-    // Hit for current player if dealer is controlling
-    // (shouldn't happen in true multiplayer — players control themselves)
+    // Это дилер даёт карту игроку, который нажал HIT.
+    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: playerIdx } });
   }
 }
 
@@ -1760,9 +1780,10 @@ function showToast(msg, type = '') {
       <ellipse cx="${w*.35}" cy="${h*.55}" rx="${w*.25}" ry="${h*.42}" fill="white"/>
       <ellipse cx="${w*.62}" cy="${h*.5}" rx="${w*.22}" ry="${h*.38}" fill="white"/>`;
     c.classList.add('cloud-svg');
-    c.style.top = (3 + i * 8) + '%';
-    c.style.animationDuration = (20 + i * 5) + 's';
-    c.style.animationDelay = -(i * 6) + 's';
+    c.style.top = (Math.random() * 85) + '%';
+    const dur = 15 + Math.random() * 25;
+    c.style.animationDuration = dur + 's';
+    c.style.animationDelay = -(Math.random() * dur) + 's';
     c.style.opacity = (0.03 + Math.random() * 0.04).toFixed(3);
     bg.appendChild(c);
   }
