@@ -780,11 +780,42 @@ function serverHandle(msg) {
     const card = room.deck.pop();
     if (!card || !room.players[playerIdx]) return;
 
-    room.players[playerIdx].hand.push(card);
+    const player = room.players[playerIdx];
+    player.hand.push(card);
 
-    saveRoom(code, room);
-    broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
-    advanceDealPhase(room);
+    // If it's the initial deal phase
+    if (room.phase === 'dealing') {
+      saveRoom(code, room);
+      broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
+      advanceDealPhase(room);
+      return;
+    }
+
+    // If a player is hitting during their turn
+    if (room.phase === 'player-turns' && playerIdx === room.currentPlayerIdx) {
+      const score = calcScore(player.hand);
+      if (score > 21) {
+        player.status = 'bust';
+        saveRoom(code, room);
+        broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room), event: { type: 'bust', playerIdx } });
+        setTimeout(() => advancePlayerTurn(room), 800);
+      } else {
+        // Card dealt, not a bust. It's still this player's turn to choose.
+        saveRoom(code, room);
+        broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
+        // Re-prompt the player for their choice.
+        broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx, playerName: player.name, isBot: false, room: publicRoom(room) });
+      }
+      return;
+    }
+
+    // If the dealer is hitting during their turn
+    if (room.phase === 'dealer-turn' && player.isDealer) {
+      saveRoom(code, room);
+      broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
+      // Client-side logic in onDropToDealer will handle the next step.
+      return;
+    }
     return;
   }
 
@@ -797,20 +828,14 @@ function serverHandle(msg) {
     if (room.currentPlayerIdx !== playerIdx) return;
 
     if (action === 'hit') {
-      const card = room.deck.pop();
-      player.hand.push(card);
-      const score = calcScore(player.hand);
-      if (score > 21) {
-        player.status = 'bust';
-        broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room), event: { type: 'bust', playerIdx } });
-        saveRoom(code, room);
-        setTimeout(() => advancePlayerTurn(room), 800);
-      } else {
-        broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room), event: { type: 'hit', playerIdx } });
-        saveRoom(code, room);
-        // Stay on this player's turn
-        broadcastRoom(room, { type: 'PLAYER_TURN', playerIdx, playerName: player.name });
-      }
+      // Player wants a card. Prompt the dealer.
+      broadcastRoom(room, {
+        type: 'DEAL_PROMPT',
+        phase: 'player-hit',
+        targetIdx: playerIdx,
+        msg: `Игрок ${player.name} просит карту`
+      });
+      // The turn doesn't advance. We wait for the dealer to act.
     } else if (action === 'stand') {
       player.status = 'stand';
       broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room), event: { type: 'stand', playerIdx } });
@@ -1563,7 +1588,7 @@ function handleDealPrompt(msg) {
   if (phase === 'dealer-first') {
     setActionText('Перетащи карту с колоды на своё место (вверху или снизу)');
     // highlight dealer area
-  } else if (phase === 'wave1' || phase === 'wave2') {
+  } else if (phase === 'wave1' || phase === 'wave2' || phase === 'player-hit') {
     setActionText(`Перетащи карту на место "${gameState?.players[targetIdx]?.name || 'игрока'}"`);
     showRing(targetIdx);
     setTimeout(hideAllRings, 2000);
