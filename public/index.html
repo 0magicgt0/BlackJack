@@ -1060,9 +1060,12 @@ function clientHandle(msg) {
       closeModal('createModal');
       if (window._pendingDemo) {
         window._pendingDemo = false;
-        // Auto-start demo: immediately send START with bots
-        showToast('Запуск демо-режима...', 'success');
-        setTimeout(() => sendToServer({ type: 'START', payload: { demoMode: true, allowBots: true } }), 100);
+        myRole = 'dealer'; // Ensure dealer role is set before game starts
+        showToast('⚡ Демо-режим: запуск...', 'success');
+        // Small delay to ensure myCode is set, then start immediately
+        setTimeout(() => {
+          sendToServer({ type: 'START', payload: { demoMode: true, allowBots: true } });
+        }, 50);
       } else {
         showWaitingRoom();
       }
@@ -1152,7 +1155,9 @@ function clientHandle(msg) {
 
 // ─── Send to server (via broadcast, host will pick it up) ───
 function sendToServer(msg) {
-  const full = { ...msg, from: MY_TAB_ID, code: myCode, _to: null };
+  // Use msg.code if provided (e.g. JOIN with room code), else use myCode
+  const code = msg.code || myCode;
+  const full = { ...msg, from: MY_TAB_ID, code, _to: null };
   if (amHost) {
     // We are the host — handle directly (BroadcastChannel doesn't deliver to self)
     serverHandle(full);
@@ -1200,7 +1205,7 @@ function joinLobby() {
   const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
   if (code.length < 9) { showToast('Введи код в формате XXXX-XXXX', 'error'); return; }
   myName = name;
-  sendToServer({ type: 'JOIN', code, payload: { name } });
+  sendToServer({ type: 'JOIN', code: code, payload: { name } });
 }
 
 // ─── Waiting room ───
@@ -1317,6 +1322,11 @@ let dealTargetIdx = -1;
 let dealerSelfDropEnabled = false;
 
 function initGameUI() {
+  // Sync myRole from gameState if needed (in case of race condition)
+  if (gameState && myRole === '') {
+    const me = gameState.players.find(p => p.tabId === MY_TAB_ID);
+    if (me) myRole = me.isDealer ? 'dealer' : 'player';
+  }
   // Set role chip
   const chip = document.getElementById('roleChip');
   chip.textContent = myRole === 'dealer' ? 'ДИЛЕР' : 'ИГРОК';
