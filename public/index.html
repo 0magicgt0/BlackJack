@@ -1328,18 +1328,6 @@ function joinLobby() {
   sendToServer({ type: 'JOIN', code: code, payload: { name } });
 }
 
-// ─── Waiting room ───
-function showWaitingRoom() {
-  document.getElementById('waitCode').textContent = myCode;
-  document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
-  document.getElementById('dealerStartWrap').style.display = '';
-  document.getElementById('playerWaitMsg').style.display = 'none';
-  updateWaitingRoomFromStorage();
-  showScreen('screen-waiting');
-  showToast('Лобби создано! Код скопирован для игроков', 'success');
-}
-
 function showWaitingRoomPlayer(room) {
   document.getElementById('waitCode').textContent = myCode;
   document.getElementById('waitTitle').textContent = 'Вы в лобби!';
@@ -1351,38 +1339,15 @@ function showWaitingRoomPlayer(room) {
   showToast('Вы подключились к лобби!', 'success');
 }
 
-function updateWaitingRoomFromStorage() {
-  const room = getRoom(myCode);
-  if (room) updateWaitingRoom(publicRoom(room));
-}
-
-function updateWaitingRoom(room) {
-  if (!room) return;
-  const list = document.getElementById('playerList');
-  const maxP = room.maxPlayers;
-  const slots = [];
-
-  for (let i = 0; i < maxP; i++) {
-    const p = room.players[i];
-    if (p) {
-      slots.push(`<div class="player-list-item">
-        <div class="pli-dot"></div>
-        <div class="pli-name">${escHtml(p.name)}</div>
-        <div class="pli-role">${p.isDealer ? 'Дилер' : 'Игрок'}</div>
-      </div>`);
-    } else {
-      slots.push(`<div class="player-list-item" style="opacity:.4">
-        <div class="pli-dot pending"></div>
-        <div class="pli-name" style="color:var(--text3)">Ожидание...</div>
-        <div class="pli-role">Место ${i + 1}</div>
-      </div>`);
-    }
-  }
-  list.innerHTML = slots.join('');
-
-  // Enable start if 2+ players
-  const startBtn = document.getElementById('startGameBtn');
-  if (startBtn) startBtn.disabled = false; // Always allow start (bots fill empty spots)
+function showWaitingRoom(msg) {
+    document.getElementById('waitCode').textContent = myCode;
+    document.getElementById('waitTitle').textContent = 'Лобби создано!';
+    document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
+    document.getElementById('dealerStartWrap').style.display = 'flex';
+    document.getElementById('playerWaitMsg').style.display = 'none';
+    updateWaitingRoom(msg);
+    showScreen('screen-waiting');
+    showToast('Лобби создано! Код скопирован для игроков', 'success');
 }
 
 function copyCode() {
@@ -1391,8 +1356,7 @@ function copyCode() {
 }
 
 function dealerStartGame() {
-  const demoMode = document.getElementById('demoToggle').checked;
-  sendToServer({ type: 'START', payload: { demoMode, allowBots: true } });
+  sendToServer({ type: 'start' });
 }
 
 // ─── Loading screen ───
@@ -1435,18 +1399,13 @@ function startLoadingThenGame() {
 }
 
 // ══════════════════════════════════════════════
-// GAME UI
+// GAME UI (Incomplete - requires full client-side state machine)
 // ══════════════════════════════════════════════
 let dealPhase = 'idle'; // for dealer: what deal step we're on
 let dealTargetIdx = -1;
 let dealerSelfDropEnabled = false;
 
 function initGameUI() {
-  // Sync myRole from gameState if needed (in case of race condition)
-  if (gameState && myRole === '') {
-    const me = gameState.players.find(p => p.tabId === MY_TAB_ID);
-    if (me) myRole = me.isDealer ? 'dealer' : 'player';
-  }
   // Set role chip
   const chip = document.getElementById('roleChip');
   chip.textContent = myRole === 'dealer' ? 'ДИЛЕР' : 'ИГРОК';
@@ -1454,14 +1413,6 @@ function initGameUI() {
 
   renderGame();
   updateDeckCount(gameState ? gameState.deckCount : 312);
-
-  if (myRole === 'dealer') {
-    setupDrag();
-    // The prompt to deal will come from the server via 'DEAL_PROMPT'
-  } else {
-    setStatus('Ожидание раздачи', true);
-    setActionText('Дилер раздаёт карты...');
-  }
 }
 
 function createSeat(p) {
@@ -1533,7 +1484,7 @@ function renderGame() {
   bottomZone.innerHTML = '';
 
   // Render myself at the bottom
-  bottomZone.appendChild(createSeat(me));
+  if (me) bottomZone.appendChild(createSeat(me));
 
   // Render others at the top
   if (myRole === 'dealer') {
@@ -1572,11 +1523,6 @@ function scoreClass(n) {
 
 // ─── Drag & Drop (Dealer) ───
 function setupDrag() {
-  const deck = document.getElementById('deckPile');
-  deck.classList.add('draggable');
-  deck.setAttribute('draggable', 'true');
-  deck.addEventListener('dragstart', onDragStart);
-  deck.addEventListener('dragend', onDragEnd);
 }
 
 function onDragStart(e) {
@@ -1602,204 +1548,36 @@ function hideAllRings() {
 
 // ─── Drop handlers ───
 function onDropToPlayer(playerIdx) {
-  hideAllRings();
-  if (!gameState) return;
-  const phase = gameState.phase;
-
-  if (phase === 'dealing') {
-    // Only can deal to the current expected target
-    const room = getRoom(myCode);
-    if (!room) return;
-
-    // Determine expected target
-    if (room.players[0].hand.length === 0) {
-      showToast('Сначала возьми свою карту!', 'warn'); return;
-    }
-    if (room.wave1Idx <= room.players.length - 1) {
-      if (playerIdx !== room.wave1Idx) {
-        showToast(`Сначала дай карту: ${room.players[room.wave1Idx].name}`, 'warn'); return;
-      }
-    } else if (room.wave2Idx <= room.players.length - 1) {
-      if (playerIdx !== room.wave2Idx) {
-        showToast(`Сначала дай карту: ${room.players[room.wave2Idx].name}`, 'warn'); return;
-      }
-    }
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: playerIdx } });
-  } else if (phase === 'player-turns' && playerIdx === gameState.currentPlayerIdx) {
-    // Это дилер даёт карту игроку, который нажал HIT.
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: playerIdx } });
-  }
 }
 
 function onDropToDealer() {
-  hideAllRings();
-  if (!gameState) return;
-  const phase = gameState.phase;
-
-  if (phase === 'dealing') {
-    const room = getRoom(myCode);
-    if (!room || room.players[0].hand.length > 0) {
-      showToast('Карта уже взята', 'warn'); return;
-    }
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: 0 } });
-  } else if (phase === 'dealer-turn' && dealerSelfDropEnabled) {
-    dealerSelfDropEnabled = false;
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: 0 } });
-    // After dealing, check if we need more
-    setTimeout(() => {
-      const room = getRoom(myCode);
-      if (!room) return;
-      const ds = calcScoreFull(room.players[0].hand);
-      if (ds >= 17) {
-        sendToServer({ type: 'DEALER_STAND' });
-      } else {
-        dealerSelfDropEnabled = true;
-        setActionText(`Ещё карту (${ds}) — перетащи снова`);
-      }
-    }, 500);
-  }
 }
 
 function enableDealerSelfDrop() {
-  dealerSelfDropEnabled = true;
 }
 
 // ─── Deal prompt handler ───
 function handleDealPrompt(msg) {
-  if (!gameState && msg.room) gameState = msg.room;
-  renderGame();
-  const { phase, targetIdx, msg: promptMsg } = msg;
-  setStatus(promptMsg || 'Раздай карты', true);
-  if (phase === 'dealer-first') {
-    setActionText('Перетащи карту с колоды на своё место (вверху или снизу)');
-    // highlight dealer area
-  } else if (phase === 'wave1' || phase === 'wave2' || phase === 'player-hit') {
-    setActionText(`Перетащи карту на место "${gameState?.players[targetIdx]?.name || 'игрока'}"`);
-    showRing(targetIdx);
-    setTimeout(hideAllRings, 2000);
-  }
-  updateDeckCount(msg.room?.deckCount || gameState?.deckCount);
 }
 
 // ─── Player turn handler ───
 function handlePlayerTurn(msg) {
-  const { playerIdx, playerName, isBot } = msg;
-  setStatus(`Ход: ${playerName}`, true);
-  const myIdx = myPlayerIdx;
-
-  if (playerIdx === myIdx && myRole !== 'dealer' && !isBot) {
-    // It's MY turn as a player
-    setActionText('Твой ход! Выбери + (ещё) или − (хватит)');
-    showToast('Твой ход!', 'success');
-  } else {
-    if (isBot) {
-      setActionText(`${playerName} думает...`);
-    } else {
-      setActionText(`${playerName} делает выбор...`);
-    }
-  }
 }
 
 function sendPlayerAction(action) {
-  sendToServer({ type: 'PLAYER_ACTION', payload: { action, playerIdx: myPlayerIdx } });
-  if (action === 'hit') {
-    setActionText('Карта взята — ожидание...');
-  } else {
-    setActionText('Стоишь — ожидание других игроков...');
-  }
 }
 
 // ─── Round end ───
 function triggerRoundEnd(msg) {
-  const popup = document.getElementById('roundEndPopup');
-  const fill = document.getElementById('repFill');
-  document.getElementById('repTitle').textContent = 'Раунд завершён — подводим итоги...';
-  popup.classList.add('show');
-  fill.style.animation = 'none';
-  fill.style.animation = 'shrink 3s linear forwards';
-  setTimeout(() => {
-    popup.classList.remove('show');
-    showResults(msg);
-  }, 3200);
 }
 
 function showResults(msg) {
-  const { room, dealerScore, dealerBust } = msg;
-  const rows = document.getElementById('resultRows');
-  rows.innerHTML = `<div class="result-row rr-dealer">
-    <div class="rr-name">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
-      Дилер (${escHtml(room.players[0]?.name || 'Дилер')})
-    </div>
-    <div class="rr-right">
-      <div class="rr-score">${dealerScore}</div>
-      ${dealerBust ? '<span class="rr-tag tag-bust">BUST</span>' : ''}
-    </div>
-  </div>`;
-
-  let wins = 0, myResult = '';
-  for (let i = 1; i < room.players.length; i++) {
-    const p = room.players[i];
-    const ps = calcScore(p.hand);
-    const isWin = p.result === 'win', isDraw = p.result === 'draw', isBust = p.status === 'bust';
-    if (isWin) wins++;
-    if (p.tabId === MY_TAB_ID) myResult = p.result;
-    rows.innerHTML += `<div class="result-row ${isWin ? 'rr-win' : isDraw ? 'rr-draw' : 'rr-lose'}">
-      <div class="rr-name">
-        ${p.tabId === MY_TAB_ID ? '⭐ ' : ''}${escHtml(p.name)}${p.isBot ? ' 🤖' : ''}
-      </div>
-      <div class="rr-right">
-        <div class="rr-score">${ps}</div>
-        <span class="rr-tag ${isWin ? 'tag-win' : isDraw ? 'tag-draw' : isBust ? 'tag-bust' : 'tag-lose'}">
-          ${isWin ? 'WIN' : isDraw ? 'DRAW' : isBust ? 'BUST' : 'LOSE'}
-        </span>
-      </div>
-    </div>`;
-  }
-
-  const rt = document.getElementById('resultTitle');
-  const ri = document.getElementById('resultIcon');
-
-  if (myResult === 'win') {
-    rt.textContent = '🎉 Ты победил!';
-    ri.style.background = 'var(--green-bg)';
-    ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-  } else if (myResult === 'draw') {
-    rt.textContent = '🤝 Ничья!';
-    ri.style.background = 'var(--gold-bg)';
-    ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`;
-  } else if (wins > 0 && myRole === 'dealer') {
-    rt.textContent = 'Дилер победил!';
-    ri.style.background = 'var(--accent-bg)';
-    ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`;
-  } else {
-    rt.textContent = wins > 0 ? `${wins} победителей!` : 'Дилер победил!';
-    ri.style.background = wins > 0 ? 'var(--green-bg)' : 'var(--accent-bg)';
-    ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${wins > 0 ? 'var(--green)' : 'var(--accent2)'}" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-  }
-
-  document.getElementById('resultOverlay').classList.add('open');
 }
 
 function playAgain() {
-  document.getElementById('resultOverlay').classList.remove('open');
-  if (myRole === 'dealer') {
-    sendToServer({ type: 'NEW_GAME' });
-  } else {
-    setStatus('Ожидание новой игры...', false);
-    setActionText('Ожидание пока дилер начнёт новый раунд...');
-  }
 }
 
 function backToLobby() {
-  document.getElementById('resultOverlay').classList.remove('open');
-  // Clean up
-  if (myCode) deleteRoom(myCode);
-  myCode = '';
-  myRole = '';
-  myPlayerIdx = -1;
-  gameState = null;
-  showScreen('screen-lobby');
 }
 
 // ─── Status helpers ───
@@ -1809,12 +1587,8 @@ function setStatus(txt, active = true) {
   dot.className = 'indicator ' + (active ? 'active' : 'warn');
 }
 function setActionText(txt) {
-  document.getElementById('actionText').textContent = txt;
 }
 function updateDeckCount(n) {
-  if (n === undefined) return;
-  document.getElementById('deckCountTop').textContent = n;
-  document.getElementById('deckBadge').textContent = n;
 }
 
 // ══════════════════════════════════════════════
@@ -2039,22 +1813,11 @@ function startConfetti(canvas) {
 // ══════════════════════════════════════════════
 // ENTRY
 // ══════════════════════════════════════════════
-document.getElementById('enterBtn').addEventListener('click', () => showScreen('screen-lobby'));
-initSun();
-
-// Listen for storage events (other tabs saving rooms)
-window.addEventListener('storage', (e) => {
-  if (e.key === ROOMS_KEY && myCode) {
-    const rooms = getRooms();
-    const room = rooms[myCode];
-    if (room && myRole !== 'dealer') {
-      // Non-dealer: update waiting room if still there
-      const currentScreen = document.querySelector('.screen.active')?.id;
-      if (currentScreen === 'screen-waiting') {
-        updateWaitingRoom(publicRoom(room));
-      }
-    }
-  }
+document.addEventListener('DOMContentLoaded', () => {
+    initWS();
+    document.getElementById('enterBtn').addEventListener('click', () => showScreen('screen-lobby'));
+    initSun();
+    document.addEventListener('click', () => playSound('click'), { once: true });
 });
 
 // ══════════════════════════════════════════════
@@ -2084,22 +1847,7 @@ function playSound(type) {
   o.start(now); o.stop(now + s.dur + 0.05);
 }
 document.addEventListener('click', () => playSound('click'), { once: true });
+
 </script>
-
-<!--
-════════════════════════════════════════════
-HOW TO USE MULTIPLAYER:
-════════════════════════════════════════════
-1. Open this HTML file in multiple browser TABS (same browser).
-2. Tab 1: "Создать лобби" → получи код → нажми "Начать игру"
-3. Tab 2+: "Присоединиться" → введи код → ожидай начала
-4. Дилер раздаёт карты перетаскиванием.
-5. Игроки видят свои карты и жмут HIT/STAND когда их ход.
-6. Дилер открывает свою карту и добирает если < 17.
-
-Технология: BroadcastChannel API + localStorage (работает
-между вкладками одного браузера без сервера).
-════════════════════════════════════════════
--->
 </body>
 </html>
