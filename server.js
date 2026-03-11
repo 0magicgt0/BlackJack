@@ -18,7 +18,40 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', rooms: Object.keys(rooms).length }));
   } else {
-    res.writeHead(404); res.end('Not found');
+    // Try to serve other static files from 'public'
+    const publicPath = path.join(__dirname, 'public');
+    const filePath = path.join(publicPath, req.url);
+
+    // Security check to prevent accessing files outside 'public'
+    if (!filePath.startsWith(publicPath)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    const extname = String(path.extname(filePath)).toLowerCase();
+    const mimeTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+    };
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    fs.readFile(filePath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end('Not Found');
+      } else {
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(data);
+      }
+    });
   }
 });
 
