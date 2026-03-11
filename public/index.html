@@ -192,6 +192,43 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .b-dealer-lbl{background:var(--accent-bg);color:var(--accent2)}
 .b-you{background:var(--gold-bg);color:var(--gold)}
 
+/* PLAYER ACTIONS (+/-) */
+.p-actions {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    gap: 10px;
+    z-index: 10;
+    animation: fadeUp .3s .1s both;
+}
+.player-seat.active-turn.my-seat:not(.dealer-seat) .p-actions {
+    display: flex;
+}
+.p-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: var(--surface3);
+    color: var(--text);
+    font-size: 24px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .2s;
+    line-height: 1;
+    padding-bottom: 2px;
+}
+.p-action-btn:hover { transform: scale(1.1); }
+.p-action-btn.pa-hit { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.p-action-btn.pa-hit:hover { background: var(--green); color: #fff; }
+.p-action-btn.pa-stand { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.p-action-btn.pa-stand:hover { background: var(--accent); color: #fff; }
+
 /* CARDS */
 .card{width:52px;height:76px;background:var(--surface2);border-radius:6px;border:1px solid var(--border2);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;padding:5px 5px 0;font-family:var(--mono);font-size:15px;font-weight:700;box-shadow:0 4px 12px #00000040;flex-shrink:0;animation:dealCard .32s cubic-bezier(.16,1.5,.5,1) both;position:relative;overflow:hidden}
 @keyframes dealCard{from{opacity:0;transform:translateY(-24px) rotate(-8deg) scale(.65)}to{opacity:1;transform:none}}
@@ -486,20 +523,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
       <span id="actionText">Ожидание...</span>
     </div>
-    <!-- My turn buttons (shown only when it's my turn) -->
-    <div class="my-turn-panel" id="myTurnPanel">
-      <div class="my-turn-label">🃏 Твой ход!</div>
-      <div class="my-turn-btns">
-        <button class="btn btn-success" id="hitBtn" onclick="sendPlayerAction('hit')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-          HIT — ещё карту
-        </button>
-        <button class="btn btn-ghost btn-stand" id="standBtn" onclick="sendPlayerAction('stand')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-          STAND — хватит
-        </button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -753,6 +776,7 @@ function serverHandle(msg) {
     room.players[playerIdx].hand.push(card);
 
     saveRoom(code, room);
+    broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
     advanceDealPhase(room);
     return;
   }
@@ -1348,8 +1372,10 @@ function createSeat(p) {
     const seat = document.createElement('div');
     seat.className = classes;
     seat.id = 'seat-' + p.idx;
-    seat.innerHTML = `
-      <div class="p-name">${escHtml(p.name)}</div>
+    seat.innerHTML = `<div class="p-actions">
+        <button class="p-action-btn pa-hit" title="HIT - Ещё карту" onclick="sendPlayerAction('hit')">+</button>
+        <button class="p-action-btn pa-stand" title="STAND - Хватит" onclick="sendPlayerAction('stand')">&minus;</button>
+      </div><div class="p-name">${escHtml(p.name)}</div>
       <div class="p-cards" id="pc-${p.idx}"></div>
       <div class="p-score-row"><div class="p-score ${sc}">${s || '—'}</div></div>
       ${badge}`;
@@ -1538,20 +1564,13 @@ function handleDealPrompt(msg) {
 function handlePlayerTurn(msg) {
   const { playerIdx, playerName, isBot } = msg;
   setStatus(`Ход: ${playerName}`, true);
-
-  const myTurnPanel = document.getElementById('myTurnPanel');
   const myIdx = myPlayerIdx;
 
   if (playerIdx === myIdx && myRole !== 'dealer' && !isBot) {
     // It's MY turn as a player
-    myTurnPanel.classList.add('show');
-    setActionText('Твой ход! Выбери HIT или STAND');
+    setActionText('Твой ход! Выбери + (ещё) или − (хватит)');
     showToast('Твой ход!', 'success');
-    // Pulse my seat
-    const mySeat = document.getElementById('seat-' + myIdx);
-    if (mySeat) mySeat.classList.add('active-turn');
   } else {
-    myTurnPanel.classList.remove('show');
     if (isBot) {
       setActionText(`${playerName} думает...`);
     } else {
@@ -1561,7 +1580,6 @@ function handlePlayerTurn(msg) {
 }
 
 function sendPlayerAction(action) {
-  document.getElementById('myTurnPanel').classList.remove('show');
   sendToServer({ type: 'PLAYER_ACTION', payload: { action, playerIdx: myPlayerIdx } });
   if (action === 'hit') {
     setActionText('Карта взята — ожидание...');
@@ -1577,9 +1595,7 @@ function triggerRoundEnd(msg) {
   document.getElementById('repTitle').textContent = 'Раунд завершён — подводим итоги...';
   popup.classList.add('show');
   fill.style.animation = 'none';
-  fill.offsetWidth;
   fill.style.animation = 'shrink 3s linear forwards';
-  document.getElementById('myTurnPanel').classList.remove('show');
   setTimeout(() => {
     popup.classList.remove('show');
     showResults(msg);
