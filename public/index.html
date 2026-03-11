@@ -459,13 +459,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
   <div class="g-table">
     <div class="felt-arc"></div>
 
-    <!-- TOP: dealer hand -->
+    <!-- TOP: opponents -->
     <div class="zone-top" id="zoneTop">
-      <div class="zone-label" id="topLabel">Дилер</div>
-      <div class="dealer-score-row">
-        <div class="score-chip" id="dealerScore">—</div>
+      <div class="zone-label" id="topLabel">Оппоненты</div>
+      <div id="opponentsZone" style="display: flex; justify-content: center; align-items: flex-start; gap: 12px; flex-wrap: wrap; width: 100%; min-height: 150px;">
       </div>
-      <div class="cards-row" id="dealerCards"></div>
     </div>
 
     <!-- CENTER: deck -->
@@ -679,9 +677,6 @@ function serverHandle(msg) {
       maxPlayers: payload.maxPlayers || 3,
       dealerTabId: from,
       phase: 'waiting',
-      deck: [],
-      dealerHand: [],
-      dealerHiddenCard: null,
       players: [{
         tabId: from,
         name: payload.name || 'Дилер',
@@ -690,6 +685,7 @@ function serverHandle(msg) {
         isDealer: true,
         idx: 0,
       }],
+      deck: [],
       currentPlayerIdx: -1,
       wave1Idx: 1,
       wave2Idx: 1,
@@ -737,10 +733,6 @@ function serverHandle(msg) {
     // Init deck & deal
     room.deck = shuffle([...Array(6)].flatMap(buildDeck));
     room.phase = 'dealing';
-    room.wave1Idx = 1;
-    room.wave2Idx = 1;
-    room.dealerHand = [];
-    room.dealerHiddenCard = null;
     for (const p of room.players) { p.hand = []; p.status = 'playing'; }
 
     saveRoom(code, room);
@@ -756,18 +748,11 @@ function serverHandle(msg) {
 
     const { playerIdx } = payload;
     const card = room.deck.pop();
-    if (!card) return;
+    if (!card || !room.players[playerIdx]) return;
 
-    if (playerIdx === -1) {
-      // Dealing to dealer himself
-      room.dealerHand.push(card);
-    } else {
-      room.players[playerIdx].hand.push(card);
-    }
+    room.players[playerIdx].hand.push(card);
 
     saveRoom(code, room);
-
-    // Auto-advance deal phase
     advanceDealPhase(room);
     return;
   }
@@ -834,7 +819,7 @@ function advanceDealPhase(room) {
 
   // Phase: dealer takes first card (idx 0)
   if (room.phase === 'dealing') {
-    if (room.dealerHand.length === 0) {
+    if (room.players[0].hand.length === 0) {
       // Need dealer's first card
       broadcastRoom(room, { type: 'DEAL_PROMPT', phase: 'dealer-first', msg: 'Возьми свою первую карту' });
       return;
@@ -869,11 +854,10 @@ function advanceDealPhase(room) {
     }
 
     // Dealer gets hidden second card automatically
-    if (room.dealerHand.length === 1) {
+    if (room.players[0].hand.length === 1) {
       const hidden = room.deck.pop();
       hidden.hidden = true;
-      room.dealerHiddenCard = hidden;
-      room.dealerHand.push(hidden);
+      room.players[0].hand.push(hidden);
       saveRoom(code, room);
       broadcastRoom(room, { type: 'GAME_STATE', room: publicRoom(room) });
     }
@@ -957,16 +941,12 @@ function advancePlayerTurn(room) {
 function startDealerTurn(room) {
   const code = room.code;
   // Reveal hidden card
-  if (room.dealerHiddenCard) {
-    room.dealerHiddenCard.hidden = false;
-    room.dealerHiddenCard = null;
-  }
-  for (const c of room.dealerHand) c.hidden = false;
+  for (const c of room.players[0].hand) c.hidden = false;
   room.phase = 'dealer-turn';
   saveRoom(code, room);
   broadcastRoom(room, { type: 'DEALER_TURN', room: publicRoom(room) });
 
-  const ds = calcScoreFull(room.dealerHand);
+  const ds = calcScoreFull(room.players[0].hand);
   if (ds >= 17) {
     finishRound(room);
   } else {
@@ -978,7 +958,7 @@ function startDealerTurn(room) {
 function finishRound(room) {
   const code = room.code;
   const fresh = getRoom(code) || room;
-  const ds = calcScoreFull(fresh.dealerHand);
+  const ds = calcScoreFull(fresh.players[0].hand);
   const dbust = ds > 21;
 
   for (const p of fresh.players) {
@@ -1004,7 +984,6 @@ function publicRoom(room) {
     phase: room.phase,
     maxPlayers: room.maxPlayers,
     deckCount: room.deck.length,
-    dealerHand: room.dealerHand,
     players: room.players,
     currentPlayerIdx: room.currentPlayerIdx,
     dealerScore: room.dealerScore,
@@ -1111,7 +1090,7 @@ function clientHandle(msg) {
       gameState = msg.room;
       renderGame();
       if (myRole === 'dealer') {
-        const ds = calcScoreFull(gameState.dealerHand);
+        const ds = calcScoreFull(gameState.players[0].hand);
         if (ds >= 17) {
           // Auto: trigger finish via broadcast
           setStatus(`Дилер стоит (${ds})`, true);
@@ -1336,48 +1315,23 @@ function initGameUI() {
   updateDeckCount(gameState ? gameState.deckCount : 312);
 
   if (myRole === 'dealer') {
-    // Enable drag-and-drop dealing
     setupDrag();
-    setStatus('Раздай первую карту себе', true);
-    setActionText('Перетащи карту с колоды на своё место (снизу)');
+    // The prompt to deal will come from the server via 'DEAL_PROMPT'
   } else {
-    setStatus('Ожидание раздачи', false);
+    setStatus('Ожидание раздачи', true);
     setActionText('Дилер раздаёт карты...');
   }
 }
 
-function renderGame() {
-  if (!gameState) return;
-  renderDealerZone();
-  renderPlayersZone();
-}
-
-function renderDealerZone() {
-  if (!gameState) return;
-  const dc = document.getElementById('dealerCards');
-  dc.innerHTML = '';
-  for (const c of gameState.dealerHand) dc.appendChild(makeCard(c));
-  const vis = gameState.dealerHand.filter(c => !c.hidden);
-  const s = vis.length ? calcScore(vis) : 0;
-  const chip = document.getElementById('dealerScore');
-  chip.textContent = s || '—';
-  chip.className = 'score-chip ' + (s ? scoreClass(s) : '');
-}
-
-function renderPlayersZone() {
-  if (!gameState) return;
-  const zone = document.getElementById('playersZone');
-  zone.innerHTML = '';
-
-  for (const p of gameState.players) {
+function createSeat(p) {
     const s = calcScore(p.hand);
     const sc = s ? scoreClass(s) : '';
-    const isMe = p.tabId === MY_TAB_ID;
+    const isMe = p.idx === myPlayerIdx;
     const isActiveTurn = gameState.currentPlayerIdx === p.idx && gameState.phase === 'player-turns';
 
     let classes = 'player-seat';
     if (p.isDealer) classes += ' dealer-seat';
-    if (isMe && !p.isDealer) classes += ' my-seat';
+    if (isMe) classes += ' my-seat';
     if (isActiveTurn) classes += ' active-turn';
     if (p.status === 'bust') classes += ' bust';
     if (p.status === 'win') classes += ' winner';
@@ -1403,7 +1357,7 @@ function renderPlayersZone() {
     const cardsEl = seat.querySelector('#pc-' + p.idx);
     for (const c of p.hand) cardsEl.appendChild(makeCard(c));
 
-    // Drop zone for dealer
+    // Add drop zone ring for dealer
     if (myRole === 'dealer') {
       const ring = document.createElement('div');
       ring.className = 'drop-zone-ring';
@@ -1411,22 +1365,46 @@ function renderPlayersZone() {
       seat.appendChild(ring);
       seat.addEventListener('dragover', e => { e.preventDefault(); showRing(p.idx); });
       seat.addEventListener('dragleave', () => hideAllRings());
-      seat.addEventListener('drop', e => { e.preventDefault(); onDropToPlayer(p.idx); });
+      if (p.isDealer) {
+        seat.addEventListener('drop', e => { e.preventDefault(); onDropToDealer(); });
+      } else {
+        seat.addEventListener('drop', e => { e.preventDefault(); onDropToPlayer(p.idx); });
+      }
     }
-
-    zone.appendChild(seat);
-  }
-
-  // For dealer: also enable drop on dealer zone top
-  if (myRole === 'dealer') {
-    setupDealerTopDrop();
-  }
+    return seat;
 }
 
-function setupDealerTopDrop() {
-  const zoneTop = document.getElementById('zoneTop');
-  zoneTop.ondragover = e => { e.preventDefault(); };
-  zoneTop.ondrop = e => { e.preventDefault(); onDropToDealer(); };
+function renderGame() {
+  if (!gameState) return;
+
+  const me = gameState.players.find(p => p.idx === myPlayerIdx);
+  if (!me) { console.error("Could not find myself in gameState"); return; }
+
+  const topZone = document.getElementById('opponentsZone');
+  const bottomZone = document.getElementById('playersZone');
+  const topLabel = document.getElementById('topLabel');
+
+  topZone.innerHTML = '';
+  bottomZone.innerHTML = '';
+
+  // Render myself at the bottom
+  bottomZone.appendChild(createSeat(me));
+
+  // Render others at the top
+  if (myRole === 'dealer') {
+    topLabel.textContent = 'Игроки';
+    const otherPlayers = gameState.players.filter(p => !p.isDealer);
+    otherPlayers.forEach(p => topZone.appendChild(createSeat(p)));
+  } else { // I am a player
+    topLabel.textContent = 'Оппоненты';
+    const dealer = gameState.players.find(p => p.isDealer);
+    const otherPlayers = gameState.players.filter(p => !p.isDealer && p.idx !== myPlayerIdx);
+
+    if (dealer) {
+      topZone.appendChild(createSeat(dealer));
+    }
+    otherPlayers.forEach(p => topZone.appendChild(createSeat(p)));
+  }
 }
 
 function makeCard(c) {
@@ -1487,7 +1465,7 @@ function onDropToPlayer(playerIdx) {
     if (!room) return;
 
     // Determine expected target
-    if (room.dealerHand.length === 0) {
+    if (room.players[0].hand.length === 0) {
       showToast('Сначала возьми свою карту!', 'warn'); return;
     }
     if (room.wave1Idx <= room.players.length - 1) {
@@ -1499,7 +1477,7 @@ function onDropToPlayer(playerIdx) {
         showToast(`Сначала дай карту: ${room.players[room.wave2Idx].name}`, 'warn'); return;
       }
     }
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx } });
+    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: playerIdx } });
   } else if (phase === 'player-turns' && playerIdx === gameState.currentPlayerIdx) {
     // Hit for current player if dealer is controlling
     // (shouldn't happen in true multiplayer — players control themselves)
@@ -1513,18 +1491,18 @@ function onDropToDealer() {
 
   if (phase === 'dealing') {
     const room = getRoom(myCode);
-    if (!room || room.dealerHand.length > 0) {
+    if (!room || room.players[0].hand.length > 0) {
       showToast('Карта уже взята', 'warn'); return;
     }
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: -1 } });
+    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: 0 } });
   } else if (phase === 'dealer-turn' && dealerSelfDropEnabled) {
     dealerSelfDropEnabled = false;
-    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: -1 } });
+    sendToServer({ type: 'DEAL_CARD', payload: { playerIdx: 0 } });
     // After dealing, check if we need more
     setTimeout(() => {
       const room = getRoom(myCode);
       if (!room) return;
-      const ds = calcScoreFull(room.dealerHand);
+      const ds = calcScoreFull(room.players[0].hand);
       if (ds >= 17) {
         sendToServer({ type: 'DEALER_STAND' });
       } else {
@@ -1537,16 +1515,6 @@ function onDropToDealer() {
 
 function enableDealerSelfDrop() {
   dealerSelfDropEnabled = true;
-  // Add drop zone to dealer's top area
-  const zoneTop = document.getElementById('zoneTop');
-  zoneTop.ondragover = e => { e.preventDefault(); };
-  zoneTop.ondrop = e => { e.preventDefault(); onDropToDealer(); };
-  // Also to dealer seat if exists
-  const dealerSeat = document.getElementById('seat-0');
-  if (dealerSeat) {
-    dealerSeat.ondragover = e => { e.preventDefault(); showRing(0); };
-    dealerSeat.ondrop = e => { e.preventDefault(); onDropToDealer(); };
-  }
 }
 
 // ─── Deal prompt handler ───
