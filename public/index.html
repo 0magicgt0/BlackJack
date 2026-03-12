@@ -1868,7 +1868,7 @@ function showToast(msg, type = '') {
 // ══════════════════════════════════════════════
 // SUN EASTER EGG
 // ══════════════════════════════════════════════
-const SUN_PHOTO_THRESHOLD = 5;
+const SUN_PHOTO_THRESHOLD = 14;
 const SUN_PARTY_THRESHOLD = 67;
 let sunClicks = 0;
 let partyActive = false;
@@ -1901,6 +1901,7 @@ function initSun() {
       sunCounter.classList.remove('show');
       showToast('🎮 MaloyCSer mode activated!', 'success');
       startAvatarBubbles();
+      mountSpotifyPlayer('https://open.spotify.com/embed/track/2wU4S9otle3rwURJULZN6O?utm_source=generator');
     }
 
     // 67 clicks: PARTY MODE
@@ -1962,12 +1963,25 @@ function showBubble() {
   scheduleBubble();
 }
 
+function removeModePlayer() {
+  document.getElementById('modePlayerWrap')?.remove();
+}
+
+function mountSpotifyPlayer(src, opts = {}) {
+  removeModePlayer();
+  const wrap = document.createElement('div');
+  wrap.id = 'modePlayerWrap';
+  wrap.style.cssText = opts.style || 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:min(420px,calc(100vw - 40px));background:rgba(8,10,18,.82);backdrop-filter:blur(8px);';
+  wrap.innerHTML = `<iframe data-testid="embed-iframe" style="border-radius:12px" src="${src}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+  document.body.appendChild(wrap);
+}
+
 function deactivatePartyMode() {
   partyActive = false;
   sunClicks = 0;
   document.getElementById('partyOverlay')?.remove();
   document.getElementById('confettiCanvas')?.remove();
-  document.getElementById('ytPlayerWrap')?.remove();
+  removeModePlayer();
   document.querySelectorAll('[id^="partyTxt"]').forEach(e => e.remove());
   document.body.classList.remove('party-active');
   stopAvatarBubbles();
@@ -1998,11 +2012,10 @@ function activatePartyMode() {
   document.body.appendChild(txt);
   document.body.appendChild(party);
 
-  const yt = document.createElement('div');
-  yt.id = 'ytPlayerWrap';
-  yt.style.cssText = 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:240px;height:135px;';
-  yt.innerHTML = `<iframe id="ytPlayer" src="https://www.youtube.com/embed/yo5CILhgvT4?autoplay=1&loop=1&playlist=yo5CILhgvT4&controls=0&modestbranding=1" width="100%" height="100%" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
-  document.body.appendChild(yt);
+  mountSpotifyPlayer(
+    'https://open.spotify.com/embed/track/7wdSCi9346RbeHjFsB6TFX?utm_source=generator&theme=0',
+    { style: 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:min(420px,calc(100vw - 40px));background:rgba(8,10,18,.82);backdrop-filter:blur(8px);' }
+  );
 
   document.body.classList.add('party-active');
   startConfetti(canvas);
