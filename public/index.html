@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>BlackJack — MagicGT</title>
+<title>BlackJack Premium - MagicGT</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -43,6 +43,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .title-divider{width:1px;height:64px;background:var(--border2);pointer-events:none}
 .title-h1{font-size:clamp(60px,9vw,100px);font-weight:900;letter-spacing:-.04em;color:var(--text);line-height:1;user-select:none}
 .title-logo2{display:flex;align-items:center;gap:24px;margin-top:6px}
+.brand-card-icon,.title-card-icon{display:inline-flex;align-items:center;justify-content:center;color:var(--gold);filter:drop-shadow(0 0 12px rgba(240,189,70,.18))}
 .title-h2{font-size:clamp(60px,9vw,100px);font-weight:900;letter-spacing:-.04em;color:transparent;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;line-height:1;user-select:none}
 .title-powered{font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);margin-top:18px;margin-bottom:28px}
 .title-enter{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#fff;font-family:var(--font);font-size:15px;font-weight:700;padding:14px 40px;border-radius:var(--r2);border:none;cursor:pointer;transition:background .15s,transform .1s}
@@ -515,7 +516,8 @@ input,textarea{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-c
     <div class="title-logo">
       <div class="title-suits"><span class="suit-glyph">♠</span><span class="suit-glyph">♥</span></div>
       <div class="title-divider"></div>
-      <h1 class="title-h1">BlackJack</h1>
+      <div class="title-card-icon" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="5" y="3" width="14" height="18" rx="2.4"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h3"/></svg></div>
+      <h1 class="title-h1">BlackJack Premium</h1>
       <div class="title-divider"></div>
       <div class="title-suits"><span class="suit-glyph">♣</span><span class="suit-glyph">♦</span></div>
     </div>
@@ -659,7 +661,7 @@ input,textarea{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-c
 <div class="screen" id="screen-game">
   <div class="g-topbar">
     <div class="g-brand">
-      <div class="g-brand-dot"></div>BlackJack
+      <div class="brand-card-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2.4"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h3"/></svg></div>BlackJack Premium
       <span class="role-chip" id="roleChip">—</span>
     </div>
     <div class="g-status-pill">
@@ -2779,18 +2781,28 @@ copyCode = function() {
   showResults = function(msg) {
     const { room, dealerScore, dealerBust } = msg;
     const rows = document.getElementById('resultRows');
-    rows.innerHTML = `<div class="result-row rr-dealer">
+    currentRoundLogText = buildRoundLog(room, dealerScore);
+
+    const downloadBtn = document.getElementById('downloadLogBtn');
+    const isLobbyCreator = !!(room?.players?.[0]?.tabId === MY_TAB_ID || myRole === 'dealer');
+    if (downloadBtn) downloadBtn.style.display = isLobbyCreator ? 'inline-flex' : 'none';
+
+    const dealerWon = !!room.players.slice(1).length && room.players.slice(1).every(p => p.result === 'lose');
+    const dealerDraw = !!room.players.slice(1).length && room.players.slice(1).every(p => p.result === 'draw');
+
+    rows.innerHTML = `<div class="result-row ${dealerWon ? 'rr-win' : dealerDraw ? 'rr-draw' : 'rr-lose'} rr-dealer">
       <div class="rr-name">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
         Дилер (${escHtml(room.players[0]?.name || 'Дилер')})
       </div>
       <div class="rr-right">
         <div class="rr-score">${dealerScore}</div>
-        ${dealerBust ? '<span class="rr-tag tag-bust">BUST</span>' : ''}
+        <span class="rr-tag ${dealerWon ? 'tag-win' : dealerDraw ? 'tag-draw' : dealerBust ? 'tag-bust' : 'tag-lose'}">${dealerWon ? 'WIN' : dealerDraw ? 'DRAW' : dealerBust ? 'BUST' : 'LOSE'}</span>
       </div>
     </div>`;
 
-    let wins = 0, myResult = myRole === 'dealer' ? (dealerWon ? 'win' : dealerDraw ? 'draw' : 'lose') : '';
+    let wins = 0;
+    let myResult = myRole === 'dealer' ? (dealerWon ? 'win' : dealerDraw ? 'draw' : 'lose') : '';
     for (let i = 1; i < room.players.length; i++) {
       const p = room.players[i];
       const ps = calcScore(p.hand);
@@ -2811,27 +2823,25 @@ copyCode = function() {
     const rt = document.getElementById('resultTitle');
     const ri = document.getElementById('resultIcon');
     if (myResult === 'win') {
-      rt.textContent = 'Ты победил!';
-      ri.style.background = 'var(--green-bg)';
-      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+      rt.textContent = myRole === 'dealer' ? 'Дилер выиграл!' : 'Ты победил!';
+      ri.style.background = myRole === 'dealer' ? 'var(--accent-bg)' : 'var(--green-bg)';
+      ri.innerHTML = myRole === 'dealer'
+        ? `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`
+        : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
       playSound('win');
     } else if (myResult === 'draw') {
-      rt.textContent = 'Ничья!';
+      rt.textContent = myRole === 'dealer' ? 'У дилера ничья' : 'Ничья!';
       ri.style.background = 'var(--gold-bg)';
-      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M8 12h8"/><path d="M12 8v8"/></svg>`;
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M8 12h8"/><path d="M12 8v8"/><circle cx="12" cy="12" r="9"/></svg>`;
       playSound('draw');
-    } else if (wins > 0 && myRole === 'dealer') {
-      rt.textContent = 'Дилер победил!';
-      ri.style.background = 'var(--accent-bg)';
-      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`;
-      playSound('win');
     } else {
-      rt.textContent = wins > 0 ? `${wins} победителей!` : 'Дилер победил!';
-      ri.style.background = wins > 0 ? 'var(--green-bg)' : 'var(--accent-bg)';
-      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${wins > 0 ? 'var(--green)' : 'var(--accent2)'}" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-      playSound(myRole === 'dealer' ? 'lose' : 'win');
+      rt.textContent = myRole === 'dealer' ? 'Дилер проиграл!' : 'Ты проиграл';
+      ri.style.background = 'var(--red-bg)';
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>`;
+      playSound('lose');
     }
-      if (!myResult && myRole !== 'dealer') playSound('lose');
+
+    if (wins >= 3 && myResult !== 'win') playSound('win');
     document.getElementById('resultOverlay').classList.add('open');
   };
 
