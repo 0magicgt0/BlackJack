@@ -327,7 +327,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 .wait-sub{font-size:13px;color:var(--text3);margin-bottom:28px}
 .wait-code{font-family:var(--mono);font-size:28px;font-weight:800;color:var(--accent2);letter-spacing:.2em;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 20px;margin-bottom:24px;cursor:pointer;transition:border-color .2s}
 .wait-code:hover{border-color:var(--accent)}
-.player-list{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;text-align:left}
+.player-list{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;text-align:left;max-height:min(42vh,360px);overflow:auto;padding-right:2px}
 .player-list-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);font-size:13px;animation:slideIn .3s cubic-bezier(.16,1,.3,1) both}
 .pli-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
 .pli-dot.pending{background:var(--text3)}
@@ -454,6 +454,8 @@ input,textarea{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-c
   .g-table{padding:10px 10px 8px;gap:10px;overflow-y:auto;overscroll-behavior:contain}
   .felt-arc{display:none}
   .zone-top,.zone-bottom{width:100%;gap:8px}
+  .zone-top{overflow-x:auto;justify-content:flex-start;scroll-snap-type:x proximity;padding-bottom:4px}
+  .zone-bottom{overflow-x:auto;flex-wrap:nowrap;justify-content:flex-start;align-items:stretch;padding:2px 2px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
   .zone-center{gap:14px;flex-direction:column;min-height:auto;flex:0 0 auto;padding:8px 0 2px}
   .zone-label{font-size:10px}
   .zone-label::before,.zone-label::after{max-width:28px}
@@ -462,8 +464,8 @@ input,textarea{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-c
   .deck-stack{width:58px;height:86px}
   .ds-card{width:54px;height:80px}
   .deck-label{bottom:-21px;font-size:10px}
-  .player-seat{min-width:92px;max-width:none;flex:1 1 calc(50% - 8px);padding:10px 8px;gap:4px}
-  .zone-bottom .player-seat{min-width:calc(50% - 8px)}
+  .player-seat{min-width:130px;max-width:none;flex:0 0 min(42vw,150px);padding:10px 8px;gap:4px;scroll-snap-align:start}
+  .zone-bottom .player-seat{min-width:130px;flex:0 0 min(42vw,150px)}
   .p-name{max-width:100%;font-size:10px}
   .p-cards,.cards-row{gap:4px;min-height:58px}
   .p-score{font-size:18px}
@@ -492,8 +494,8 @@ input,textarea{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-c
   #modePlayerWrap{display:none!important}
 }
 @media (max-width: 480px) {
-  .player-seat{flex-basis:100%}
-  .zone-bottom .player-seat{min-width:100%}
+  .player-seat{flex:0 0 min(64vw,168px)}
+  .zone-bottom .player-seat{min-width:min(64vw,168px);flex:0 0 min(64vw,168px)}
   .wait-code{font-size:22px;letter-spacing:.14em;padding:10px 12px}
   .modal-title,.wait-title,.load-title{font-size:18px}
   .panel-title{font-size:15px}
@@ -1966,6 +1968,11 @@ function buildRoundLog(room, dealerScore) {
 }
 
 function downloadRoundLog() {
+  const isLobbyCreator = !!(gameState?.players?.[0]?.tabId === MY_TAB_ID || myRole === 'dealer');
+  if (!isLobbyCreator) {
+    showToast('Скачать лог может только создатель лобби', 'error');
+    return;
+  }
   if (!currentRoundLogText) {
     showToast('Лог пока недоступен', 'error');
     return;
@@ -2016,20 +2023,27 @@ function triggerRoundEnd(msg) {
   clearTurnCountdown();
   const popup = document.getElementById('roundEndPopup');
   const fill = document.getElementById('repFill');
-  document.getElementById('repTitle').textContent = 'Раунд завершён — подводим итоги...';
+  document.getElementById('repTitle').textContent = 'Раунд завершён - подводим итоги...';
   popup.classList.add('show');
   fill.style.animation = 'none';
   fill.style.animation = 'shrink 3s linear forwards';
-  setTimeout(() => {
+  clearTimeout(triggerRoundEnd._timer);
+  const delay = myRole === 'dealer' ? 900 : 3200;
+  triggerRoundEnd._timer = setTimeout(() => {
     popup.classList.remove('show');
-    showResults(msg);
-  }, 3200);
+    if (!document.getElementById('resultOverlay').classList.contains('open')) {
+      showResults(msg);
+    }
+  }, delay);
 }
 
 function showResults(msg) {
   const { room, dealerScore, dealerBust } = msg;
   const rows = document.getElementById('resultRows');
   currentRoundLogText = buildRoundLog(room, dealerScore);
+  const downloadBtn = document.getElementById('downloadLogBtn');
+  const isLobbyCreator = !!(room?.players?.[0]?.tabId === MY_TAB_ID || myRole === 'dealer');
+  if (downloadBtn) downloadBtn.style.display = isLobbyCreator ? 'inline-flex' : 'none';
   const dealerWon = !!room.players.slice(1).length && room.players.slice(1).every(p => p.result === 'lose');
   const dealerDraw = !!room.players.slice(1).length && room.players.slice(1).every(p => p.result === 'draw');
 
