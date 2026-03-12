@@ -1,6 +1,7 @@
 # 🃏 BlackJack — MaloyCSer Edition
 
 Multiplayer BlackJack с WebSocket сервером.
+https://blackjack-q079.onrender.com
 
 ---
 
