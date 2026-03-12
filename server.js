@@ -286,6 +286,7 @@ function handleMessage(ws, raw) {
       p.result = null;
     }
     broadcastRoom(room, { type: 'GAME_START' });
+    setTimeout(() => advanceDealPhase(room), 50);
     return;
   }
 
@@ -351,6 +352,7 @@ function handleMessage(ws, raw) {
       p.result = null;
     }
     broadcastRoom(room, { type: 'GAME_START' });
+    setTimeout(() => advanceDealPhase(room), 50);
     return;
   }
 }
