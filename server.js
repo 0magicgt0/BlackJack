@@ -4,61 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-
-// ── HTTP Server (serves the HTML game) ──
-const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/index.html') {
-    const file = path.join(__dirname, 'public', 'index.html');
-    fs.readFile(file, (err, data) => {
-      if (err) { res.writeHead(404); res.end('Not found'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(data);
-    });
-  } else if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', rooms: Object.keys(rooms).length }));
-  } else {
-    // Try to serve other static files from 'public'
-    const publicPath = path.join(__dirname, 'public');
-    const filePath = path.join(publicPath, req.url);
-
-    // Security check to prevent accessing files outside 'public'
-    if (!filePath.startsWith(publicPath)) {
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
-    }
-
-    const extname = String(path.extname(filePath)).toLowerCase();
-    const mimeTypes = {
-        '.html': 'text/html; charset=utf-8',
-        '.js': 'text/javascript',
-        '.css': 'text/css',
-        '.json': 'application/json',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-    };
-    const contentType = mimeTypes[extname] || 'application/octet-stream';
-
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end('Not Found');
-      } else {
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data);
-      }
-    });
-  }
-});
-
-// ── WebSocket Server ──
-const wss = new WebSocket.Server({ server });
-
-// rooms: { CODE: { dealer, players: [], playerCount, phase, started } }
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const rooms = {};
 
 function genCode() {
@@ -70,171 +16,162 @@ function genCode() {
   return s;
 }
 
-function broadcast(room, msg, excludeWs = null) {
-  const r = rooms[room];
-  if (!r) return;
-  const data = JSON.stringify(msg);
-  const all = [r.dealer, ...r.players].filter(Boolean);
-  all.forEach(ws => {
-    if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
-    }
-  });
-}
-
-function send(ws, msg) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
-  }
-}
-
-function getRoomInfo(code) {
-  const r = rooms[code];
-  if (!r) return null;
+function getMime(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
   return {
-    code,
-    playerCount: r.playerCount,
-    connected: r.players.length + (r.dealer ? 1 : 0),
-    started: r.started,
-    phase: r.phase,
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml'
+  }[ext] || 'application/octet-stream';
+}
+
+function safeJoin(base, target) {
+  const filePath = path.normalize(path.join(base, target));
+  if (!filePath.startsWith(base)) return null;
+  return filePath;
+}
+
+function roomPublic(room) {
+  return {
+    code: room.code,
+    maxPlayers: room.maxPlayers,
+    phase: room.phase,
+    players: room.players.map(p => ({ idx: p.idx, name: p.name, isDealer: p.isDealer, tabId: p.tabId }))
   };
 }
 
+function send(ws, payload) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+function broadcastRoom(code, payload, exclude = null) {
+  const room = rooms[code];
+  if (!room) return;
+  room.players.forEach(player => {
+    if (player.ws !== exclude) send(player.ws, payload);
+  });
+}
+
+function removePlayerFromRoom(ws) {
+  const code = ws.roomCode;
+  if (!code || !rooms[code]) return;
+  const room = rooms[code];
+  const leaving = room.players.find(p => p.ws === ws);
+  room.players = room.players.filter(p => p.ws !== ws);
+
+  if (leaving && leaving.isDealer) {
+    broadcastRoom(code, { type: 'ROOM_CLOSED', msg: 'Дилер покинул лобби' }, ws);
+    delete rooms[code];
+    return;
+  }
+
+  if (room.players.length === 0) {
+    delete rooms[code];
+    return;
+  }
+
+  room.players.forEach((p, index) => { p.idx = index; });
+  broadcastRoom(code, { type: 'LOBBY_UPDATE', room: roomPublic(room) });
+}
+
+const server = http.createServer((req, res) => {
+  const url = req.url === '/' ? '/index.html' : req.url;
+  if (url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'ok', rooms: Object.keys(rooms).length }));
+    return;
+  }
+
+  const filePath = safeJoin(PUBLIC_DIR, decodeURIComponent(url.split('?')[0]));
+  if (!filePath) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': getMime(filePath) });
+    res.end(data);
+  });
+});
+
+const wss = new WebSocket.Server({ server });
+
 wss.on('connection', (ws) => {
   ws.roomCode = null;
-  ws.role = null; // 'dealer' | 'player'
-  ws.playerName = null;
-  ws.playerIdx = -1;
+  ws.tabId = null;
+  ws.isDealer = false;
 
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
-    switch (msg.type) {
+    const type = String(msg.type || '').toUpperCase();
+    ws.tabId = msg.from || ws.tabId;
 
-      // Dealer creates a lobby
-      case 'create': {
-        let code = genCode();
-        while (rooms[code]) code = genCode();
-        rooms[code] = {
-          dealer: ws,
-          players: [],
-          playerCount: msg.playerCount || 3,
-          phase: 'lobby',
-          started: false,
-          gameState: null,
-        };
-        ws.roomCode = code;
-        ws.role = 'dealer';
-        ws.playerIdx = 0;
-        ws.playerName = msg.name || 'Дилер';
-        const allPlayers = [{ name: ws.playerName, isDealer: true }];
-        send(ws, { type: 'created', code, playerCount: rooms[code].playerCount, players: allPlayers });
-        console.log(`[CREATE] Room ${code} by ${ws.playerName}`);
-        break;
-      }
-
-      // Player joins a lobby
-      case 'join': {
-        const code = msg.code?.toUpperCase();
-        const r = rooms[code];
-        if (!r) { send(ws, { type: 'error', msg: 'Лобби не найдено' }); return; }
-        if (r.started) { send(ws, { type: 'error', msg: 'Игра уже началась' }); return; }
-        if (r.players.length >= r.playerCount - 1) { send(ws, { type: 'error', msg: 'Лобби заполнено' }); return; }
-
-        const idx = r.players.length + 1;
-        ws.roomCode = code;
-        ws.role = 'player';
-        ws.playerIdx = idx;
-        ws.playerName = msg.name || `Игрок ${idx}`;
-        r.players.push(ws);
-
-        const allPlayers = [r.dealer, ...r.players].map(p => ({ name: p.playerName, isDealer: p.role === 'dealer' }));
-
-        send(ws, { type: 'joined', code, playerIdx: idx, playerCount: r.playerCount, players: allPlayers });
-        broadcast(code, { type: 'lobby_update', players: allPlayers, playerCount: r.playerCount }, ws);
-        console.log(`[JOIN] ${ws.playerName} joined room ${code} (${allPlayers.length}/${r.playerCount} players)`);
-        break;
-      }
-
-      // Dealer starts the game
-      case 'start': {
-        const r = rooms[ws.roomCode];
-        if (!r || ws.role !== 'dealer') return;
-        r.started = true;
-        r.phase = 'deal-self'; // This phase management should ideally be on the dealer's client
-        
-        // The server just notifies clients that the game is starting.
-        // The dealer's client will then drive the game logic.
-        broadcast(ws.roomCode, { type: 'game_start', phase: r.phase, playerCount: r.playerCount });
-        console.log(`[START] Room ${ws.roomCode}`);
-        break;
-      }
-
-      // Generic game action relay (card deal, hit, stand, etc.)
-      case 'game_action': {
-        const r = rooms[ws.roomCode];
-        if (!r) return;
-        // Relay to everyone else
-        broadcast(ws.roomCode, {
-          type: 'game_action',
-          action: msg.action,
-          payload: msg.payload,
-          from: ws.playerIdx,
-        }, ws);
-        break;
-      }
-
-      // Ping/pong keepalive
-      case 'ping': {
-        send(ws, { type: 'pong' });
-        break;
-      }
+    if (type === 'CREATE') {
+      let code = genCode();
+      while (rooms[code]) code = genCode();
+      const room = {
+        code,
+        phase: 'waiting',
+        maxPlayers: Number(msg.payload?.maxPlayers) || 3,
+        players: [{ ws, tabId: msg.from, name: msg.payload?.name || '@dealer', isDealer: true, idx: 0 }]
+      };
+      rooms[code] = room;
+      ws.roomCode = code;
+      ws.isDealer = true;
+      send(ws, { type: 'CREATED', code, playerIdx: 0, room: roomPublic(room) });
+      return;
     }
-  });
 
-  ws.on('close', () => {
-    const code = ws.roomCode;
-    if (!code || !rooms[code]) return;
-    const r = rooms[code];
-    console.log(`[DISCONNECT] ${ws.playerName || '?'} left room ${code}`);
+    if (type === 'JOIN') {
+      const code = String(msg.code || '').toUpperCase();
+      const room = rooms[code];
+      if (!room) return send(ws, { type: 'ERROR', msg: 'Лобби не найдено' });
+      if (room.phase !== 'waiting') return send(ws, { type: 'ERROR', msg: 'Игра уже началась' });
+      if (room.players.length >= room.maxPlayers) return send(ws, { type: 'ERROR', msg: 'Лобби заполнено' });
+      if (room.players.some(p => p.tabId === msg.from)) return send(ws, { type: 'ERROR', msg: 'Вы уже в лобби' });
 
-    if (ws.role === 'dealer') {
-      // Dealer left — close the room
-      broadcast(code, { type: 'room_closed', reason: 'Дилер покинул игру' });
-      delete rooms[code];
-    } else {
-      // Player left
-      r.players = r.players.filter(p => p !== ws);
-      const allPlayers = [r.dealer, ...r.players].map(p => ({ name: p.playerName, isDealer: p.role === 'dealer' }));
-      broadcast(code, {
-        type: 'player_left',
-        playerIdx: ws.playerIdx,
-        name: ws.playerName,
-        players: allPlayers,
-      });
+      const idx = room.players.length;
+      room.players.push({ ws, tabId: msg.from, name: msg.payload?.name || `@player${idx}`, isDealer: false, idx });
+      ws.roomCode = code;
+      ws.isDealer = false;
+      send(ws, { type: 'JOINED', code, playerIdx: idx, room: roomPublic(room) });
+      broadcastRoom(code, { type: 'LOBBY_UPDATE', room: roomPublic(room) });
+      return;
     }
+
+    const code = ws.roomCode || msg.code || msg._roomCode;
+    const room = rooms[code];
+    if (!room) return;
+
+    if (type === 'START') room.phase = 'playing';
+    if (msg._to) {
+      const target = room.players.find(p => p.tabId === msg._to);
+      return send(target?.ws, msg);
+    }
+
+    broadcastRoom(code, msg, ws);
   });
 
-  ws.on('error', (err) => {
-    console.error('WS error:', err.message);
-  });
+  ws.on('close', () => removePlayerFromRoom(ws));
+  ws.on('error', () => removePlayerFromRoom(ws));
 });
 
-// Cleanup empty/stale rooms every 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const code of Object.keys(rooms)) {
-    const r = rooms[code];
-    const all = [r.dealer, ...r.players].filter(ws => ws && ws.readyState === WebSocket.OPEN);
-    if (all.length === 0) {
-      delete rooms[code];
-      console.log(`[CLEANUP] Removed empty room ${code}`);
-    }
-  }
-}, 10 * 60 * 1000);
-
 server.listen(PORT, () => {
-  console.log(`🃏 BlackJack server running on port ${PORT}`);
-  console.log(`   http://localhost:${PORT}`);
+  console.log(`BlackJack server running on port ${PORT}`);
 });
