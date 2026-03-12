@@ -1263,6 +1263,7 @@ function clientHandle(msg) {
   switch (msg.type) {
     case 'CREATED':
       myCode = msg.code;
+      persistRoomCode(myCode);
       myPlayerIdx = msg.playerIdx;
       myRole = 'dealer';
       closeModal('createModal');
@@ -1281,6 +1282,7 @@ function clientHandle(msg) {
 
     case 'JOINED':
       myCode = msg.code;
+      persistRoomCode(myCode);
       myPlayerIdx = msg.playerIdx;
       myRole = 'player';
       closeModal('joinModal');
@@ -1294,6 +1296,7 @@ function clientHandle(msg) {
     case 'GAME_START':
       latestDealPrompt = null;
       gameState = msg.room;
+      if (msg.room?.code) { myCode = msg.room.code; persistRoomCode(myCode); }
       startLoadingThenGame();
       break;
 
@@ -1306,6 +1309,7 @@ function clientHandle(msg) {
 
     case 'GAME_STATE':
       gameState = msg.room;
+      if (msg.room?.code) { myCode = msg.room.code; persistRoomCode(myCode); }
       renderGame();
       updateDeckCount(gameState.deckCount);
       break;
@@ -1965,6 +1969,7 @@ function backToLobby() {
   document.getElementById('resultOverlay').classList.remove('open');
   // Clean up
   if (myCode) deleteRoom(myCode);
+  clearPersistedRoomCode();
   myCode = '';
   myRole = '';
   myPlayerIdx = -1;
@@ -2335,6 +2340,19 @@ let ws = null;
 let wsReady = false;
 let latestRoomState = null;
 let latestDealPrompt = null;
+const ROOM_CODE_KEY = 'bj-room-code';
+
+function persistRoomCode(code) {
+  const v = String(code || '').trim().toUpperCase();
+  if (!v) return;
+  try { localStorage.setItem(ROOM_CODE_KEY, v); } catch {}
+}
+function clearPersistedRoomCode() {
+  try { localStorage.removeItem(ROOM_CODE_KEY); } catch {}
+}
+function getPersistedRoomCode() {
+  try { return (localStorage.getItem(ROOM_CODE_KEY) || '').trim().toUpperCase(); } catch { return ''; }
+}
 
 function wsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -2356,7 +2374,7 @@ function connectWs() {
   ws.addEventListener('message', (ev) => {
     try {
       const msg = JSON.parse(ev.data);
-      if (msg.room) latestRoomState = msg.room;
+      if (msg.room) { latestRoomState = msg.room; if (msg.room.code) persistRoomCode(msg.room.code); }
       if (msg.type === 'DEAL_PROMPT') latestDealPrompt = msg;
       clientHandle(msg);
     } catch (e) {
@@ -2368,7 +2386,9 @@ connectWs();
 if (isMobileUI()) document.body.classList.add('mobile-ui');
 
 sendToServer = function(msg) {
-  const full = { ...msg, from: MY_TAB_ID, code: msg.code || myCode };
+  const roomCode = (msg.code || myCode || getPersistedRoomCode() || '').toUpperCase();
+  if (!myCode && roomCode) myCode = roomCode;
+  const full = { ...msg, from: MY_TAB_ID, code: roomCode };
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showToast('Соединение с сервером ещё не готово', 'warn');
     return;
@@ -2673,3 +2693,9 @@ HOW TO USE MULTIPLAYER:
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 </body>
 </html>
+
+
+(function restoreRoomCodeOnBoot(){
+  const saved = getPersistedRoomCode();
+  if (saved && !myCode) myCode = saved;
+})();
