@@ -1963,17 +1963,69 @@ function showBubble() {
   scheduleBubble();
 }
 
+let spotifyEmbedController = null;
+let pendingSpotifyMount = null;
+
 function removeModePlayer() {
+  try { spotifyEmbedController?.destroy?.(); } catch (e) {}
+  spotifyEmbedController = null;
+  pendingSpotifyMount = null;
   document.getElementById('modePlayerWrap')?.remove();
 }
+
+function spotifyTrackIdFromSrc(src) {
+  const m = src.match(/\/track\/([A-Za-z0-9]+)/i);
+  return m ? m[1] : null;
+}
+
+function tryMountSpotifyEmbed() {
+  if (!pendingSpotifyMount || !window.SpotifyIframeApi || !window.SpotifyIframeApi.createController) return;
+  const { src, opts } = pendingSpotifyMount;
+  const host = document.getElementById('modePlayerHost');
+  if (!host) return;
+
+  const trackId = spotifyTrackIdFromSrc(src);
+  if (!trackId) {
+    host.innerHTML = `<iframe data-testid="embed-iframe" style="border-radius:12px" src="${src}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+    pendingSpotifyMount = null;
+    return;
+  }
+
+  window.SpotifyIframeApi.createController(host, {
+    uri: `spotify:track:${trackId}`,
+    width: '100%',
+    height: 152,
+    preferredTheme: src.includes('theme=0') ? 'dark' : undefined,
+  }, controller => {
+    spotifyEmbedController = controller;
+    pendingSpotifyMount = null;
+
+    controller.addListener('ready', () => {
+      setTimeout(() => {
+        try { controller.play(); } catch (e) {}
+        setTimeout(() => {
+          const iframe = document.querySelector('#modePlayerWrap iframe');
+          iframe?.setAttribute('allow', 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture');
+        }, 50);
+      }, 120);
+    });
+  });
+}
+
+window.onSpotifyIframeApiReady = (IFrameAPI) => {
+  window.SpotifyIframeApi = IFrameAPI;
+  tryMountSpotifyEmbed();
+};
 
 function mountSpotifyPlayer(src, opts = {}) {
   removeModePlayer();
   const wrap = document.createElement('div');
   wrap.id = 'modePlayerWrap';
   wrap.style.cssText = opts.style || 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:min(420px,calc(100vw - 40px));background:rgba(8,10,18,.82);backdrop-filter:blur(8px);';
-  wrap.innerHTML = `<iframe data-testid="embed-iframe" style="border-radius:12px" src="${src}" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+  wrap.innerHTML = '<div id="modePlayerHost" style="width:100%;height:152px;border-radius:12px;overflow:hidden"></div>';
   document.body.appendChild(wrap);
+  pendingSpotifyMount = { src, opts };
+  tryMountSpotifyEmbed();
 }
 
 function deactivatePartyMode() {
@@ -2450,5 +2502,6 @@ HOW TO USE MULTIPLAYER:
 Технология: WebSocket (работает по сети).
 ════════════════════════════════════════════
 -->
+<script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 </body>
 </html>
