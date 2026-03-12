@@ -6,6 +6,17 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const rooms = Object.create(null);
 
+function resolveRoomFromMessage(ws, msg) {
+  const candidates = [msg.code, msg.payload?.code, ws.roomCode].filter(Boolean).map(v => String(v).trim().toUpperCase());
+  for (const candidate of candidates) {
+    if (rooms[candidate]) {
+      ws.roomCode = candidate;
+      return rooms[candidate];
+    }
+  }
+  return null;
+}
+
 function genId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -242,9 +253,9 @@ function handleMessage(ws, raw) {
     return;
   }
 
-  const room = rooms[code || ws.roomCode];
+  const room = resolveRoomFromMessage(ws, msg);
   if (!room) {
-    if (type !== 'PING') send(ws, { type: 'ERROR', msg: 'Лобби не найдено' });
+    if (type !== 'PING') send(ws, { type: 'ERROR', msg: 'Лобби не найдено' + ((code || ws.roomCode) ? ': ' + String(code || ws.roomCode).toUpperCase() : '') });
     return;
   }
   ws.roomCode = room.code;
