@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BlackJack</title>
+<title>BlackJack — MagicGT</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -404,6 +404,88 @@ img,svg,button,a,.btn,.action-card,.counter-btn,.title-enter,.toggle-switch,.sun
 input,textarea{-webkit-user-select:none;user-select:none}
 @keyframes mode67Float{0%{transform:translateX(110vw)}100%{transform:translateX(-25vw)}}
 
+
+/* MOBILE OPTIMIZATION */
+.deck-stack.mobile-ready{cursor:pointer}
+.deck-stack.mobile-ready .ds-top{border-color:var(--accent);box-shadow:0 0 18px var(--accent-bg)}
+.deck-stack.mobile-armed{transform:translateY(-4px) scale(1.04)}
+.mobile-deal-tip{display:none;font-size:11px;color:var(--accent2);letter-spacing:.04em;text-align:center;margin-top:6px}
+.deck-stack.mobile-ready .mobile-deal-tip{display:block}
+.player-seat.mobile-targetable{cursor:pointer}
+.player-seat.mobile-targetable::after{content:'';position:absolute;inset:-3px;border:2px dashed var(--accent);border-radius:calc(var(--r) + 2px);opacity:.85;pointer-events:none}
+@media (max-width: 900px), (pointer: coarse) {
+  html,body{overflow:hidden;height:100dvh}
+  .screen{width:100vw;height:100dvh}
+  .title-wrap{width:min(92vw,560px);padding:0 10px}
+  .title-logo,.title-logo2{gap:10px}
+  .title-divider{height:34px}
+  .title-h1,.title-h2{font-size:clamp(34px,13vw,60px)}
+  .title-powered,.title-eyebrow,.title-hint{font-size:10px}
+  .title-enter{padding:13px 26px;font-size:14px;width:min(280px,86vw);justify-content:center}
+  .lobby-panel,.modal,.wait-panel{width:min(92vw,420px);padding:22px}
+  .panel-sub,.wait-sub{margin-bottom:18px;padding-bottom:14px}
+  .lobby-strip{gap:8px}
+  .action-card{padding:14px 14px}
+  .action-card:hover,.title-enter:hover,.deck-stack.draggable:hover,.btn:hover,.btn-primary:hover,.btn-ghost:hover,.btn-success:hover,.counter-btn:hover,.code-copy-btn:hover{transform:none;opacity:1;background:unset}
+  .action-card:hover{background:var(--surface2);border-color:var(--border)}
+  .counter-row{gap:10px;flex-wrap:wrap}
+  .counter-hint{width:100%;text-align:center}
+  .join-input{font-size:16px;letter-spacing:.16em;padding:12px 10px}
+  .name-input{font-size:16px;padding:12px 14px}
+  .code-block{padding:10px 12px;flex-wrap:wrap}
+  .code-val{font-size:18px;letter-spacing:.12em;width:100%;text-align:center}
+  .code-copy-btn{width:100%;justify-content:center;padding:10px 12px}
+  .load-list{width:min(92vw,360px)}
+  .g-topbar{height:auto;min-height:52px;padding:8px 12px;gap:8px;flex-wrap:wrap;justify-content:center}
+  .g-brand{font-size:13px}
+  .g-status-pill,.deck-badge{font-size:11px;padding:5px 10px}
+  .g-table{padding:10px 10px 8px;gap:10px;overflow-y:auto;overscroll-behavior:contain}
+  .felt-arc{display:none}
+  .zone-top,.zone-bottom{width:100%;gap:8px}
+  .zone-center{gap:14px;flex-direction:column;min-height:auto;flex:0 0 auto;padding:8px 0 2px}
+  .zone-label{font-size:10px}
+  .zone-label::before,.zone-label::after{max-width:28px}
+  .dealer-score-row{gap:8px;flex-wrap:wrap;justify-content:center}
+  .score-chip{font-size:18px;padding:4px 12px;min-width:56px}
+  .deck-stack{width:58px;height:86px}
+  .ds-card{width:54px;height:80px}
+  .deck-label{bottom:-21px;font-size:10px}
+  .player-seat{min-width:92px;max-width:none;flex:1 1 calc(50% - 8px);padding:10px 8px;gap:4px}
+  .zone-bottom .player-seat{min-width:calc(50% - 8px)}
+  .p-name{max-width:100%;font-size:10px}
+  .p-cards,.cards-row{gap:4px;min-height:58px}
+  .p-score{font-size:18px}
+  .p-action-btn{width:40px;height:40px;font-size:26px}
+  .p-actions{top:-18px;gap:8px}
+  .card{width:42px;height:62px;padding:4px 4px 0;font-size:12px}
+  .card-v{font-size:11px}
+  .card-s{font-size:10px}
+  .card-center{font-size:18px}
+  .g-actionbar{position:sticky;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));gap:10px;min-height:60px}
+  .action-text{font-size:12px;text-align:center;justify-content:center;flex-wrap:wrap}
+  .my-turn-label{font-size:14px;text-align:center}
+  .my-turn-btns{width:100%;justify-content:center}
+  .result-panel{min-width:min(92vw,380px);padding:22px 16px 18px}
+  .result-header{margin-bottom:18px;padding-bottom:14px}
+  .result-title-text{font-size:16px}
+  .result-actions{flex-direction:column}
+  .toast{top:12px;right:12px;left:12px;max-width:none}
+  .round-end-popup{top:12px;width:min(92vw,360px);padding:14px 12px}
+  .rep-bar{width:100%}
+  .sun-wrap{right:14px;bottom:14px}
+  .sun-svg,.sun-avatar,.sun-img{width:54px;height:54px}
+  .avatar-bubble-wrap{right:14px;bottom:84px;max-width:min(72vw,260px)}
+  .avatar-bubble{max-width:min(72vw,240px);font-size:12px;padding:10px 12px}
+  #modePlayerWrap{display:none!important}
+}
+@media (max-width: 480px) {
+  .player-seat{flex-basis:100%}
+  .zone-bottom .player-seat{min-width:100%}
+  .wait-code{font-size:22px;letter-spacing:.14em;padding:10px 12px}
+  .modal-title,.wait-title,.load-title{font-size:18px}
+  .panel-title{font-size:15px}
+}
+
 </style>
 </head>
 <body>
@@ -747,6 +829,9 @@ let myName = '';
 let myCode = '';
 let myRole = ''; // 'dealer' | 'player'
 let myPlayerIdx = -1; // index in room.players
+const MOBILE_UI_QUERY = '(max-width: 900px), (pointer: coarse)';
+function isMobileUI() { return window.matchMedia ? window.matchMedia(MOBILE_UI_QUERY).matches : window.innerWidth <= 900; }
+let mobileDealArmed = false;
 
 // ══════════════════════════════════════════════
 // SERVER LOGIC (runs on all tabs, but only acts if host)
@@ -1519,13 +1604,20 @@ function createSeat(p) {
       ring.className = 'drop-zone-ring';
       ring.id = 'ring-' + p.idx;
       seat.appendChild(ring);
-      seat.addEventListener('dragover', e => { e.preventDefault(); showRing(p.idx); });
-      seat.addEventListener('dragleave', () => hideAllRings());
-      if (p.isDealer) {
-        seat.addEventListener('drop', e => { e.preventDefault(); onDropToDealer(); });
-      } else {
-        seat.addEventListener('drop', e => { e.preventDefault(); onDropToPlayer(p.idx); });
+      if (!isMobileUI()) {
+        seat.addEventListener('dragover', e => { e.preventDefault(); showRing(p.idx); });
+        seat.addEventListener('dragleave', () => hideAllRings());
+        if (p.isDealer) {
+          seat.addEventListener('drop', e => { e.preventDefault(); onDropToDealer(); });
+        } else {
+          seat.addEventListener('drop', e => { e.preventDefault(); onDropToPlayer(p.idx); });
+        }
       }
+      seat.addEventListener('click', () => {
+        if (!isMobileUI() || !mobileDealArmed) return;
+        if (p.isDealer) onDropToDealer();
+        else onDropToPlayer(p.idx);
+      });
     }
     return seat;
 }
@@ -1563,6 +1655,8 @@ function renderGame() {
     const otherPlayers = gameState.players.filter(p => !p.isDealer && p.idx !== myPlayerIdx);
     otherPlayers.forEach(p => bottomZone.appendChild(createSeat(p)));
   }
+
+  setupDrag();
 }
 
 function makeCard(c) {
@@ -1584,10 +1678,72 @@ function scoreClass(n) {
 // ─── Drag & Drop (Dealer) ───
 function setupDrag() {
   const deck = document.getElementById('deckPile');
-  deck.classList.add('draggable');
-  deck.setAttribute('draggable', 'true');
-  deck.addEventListener('dragstart', onDragStart);
-  deck.addEventListener('dragend', onDragEnd);
+  if (!deck) return;
+  deck.classList.remove('draggable', 'mobile-ready', 'mobile-armed');
+  deck.removeAttribute('draggable');
+  deck.ondragstart = null;
+  deck.ondragend = null;
+  deck.removeEventListener('dragstart', onDragStart);
+  deck.removeEventListener('dragend', onDragEnd);
+  deck.removeEventListener('click', onDeckTapMobile);
+
+  if (myRole !== 'dealer') return;
+
+  if (isMobileUI()) {
+    deck.classList.add('mobile-ready');
+    if (!deck.querySelector('.mobile-deal-tip')) {
+      const tip = document.createElement('div');
+      tip.className = 'mobile-deal-tip';
+      tip.textContent = 'Тапни колоду';
+      deck.appendChild(tip);
+    }
+    deck.addEventListener('click', onDeckTapMobile);
+  } else {
+    deck.classList.add('draggable');
+    deck.setAttribute('draggable', 'true');
+    deck.addEventListener('dragstart', onDragStart);
+    deck.addEventListener('dragend', onDragEnd);
+  }
+}
+
+function setMobileDealMode(armed, targetIdx = null) {
+  mobileDealArmed = armed;
+  const deck = document.getElementById('deckPile');
+  if (deck) deck.classList.toggle('mobile-armed', !!armed);
+  document.querySelectorAll('.player-seat').forEach(seat => seat.classList.remove('mobile-targetable'));
+  if (!armed) { hideAllRings(); return; }
+  if (typeof targetIdx === 'number') {
+    showRing(targetIdx);
+    const seat = document.getElementById('seat-' + targetIdx);
+    if (seat) seat.classList.add('mobile-targetable');
+  }
+}
+
+function getExpectedMobileDealTarget() {
+  if (!gameState) return null;
+  const phase = gameState.phase;
+  const room = getRoom(myCode) || latestRoomState;
+  if (phase === 'dealing' && room && room.players) {
+    if ((room.players[0]?.hand?.length || 0) === 0) return 0;
+    if (typeof room.wave1Idx === 'number' && room.wave1Idx <= room.players.length - 1) return room.wave1Idx;
+    if (typeof room.wave2Idx === 'number' && room.wave2Idx <= room.players.length - 1) return room.wave2Idx;
+  }
+  if (phase === 'player-turns' && typeof gameState.currentPlayerIdx === 'number') return gameState.currentPlayerIdx;
+  if (phase === 'dealer-turn' && dealerSelfDropEnabled) return 0;
+  return null;
+}
+
+function onDeckTapMobile() {
+  if (!isMobileUI() || myRole !== 'dealer') return;
+  const targetIdx = getExpectedMobileDealTarget();
+  if (targetIdx == null) {
+    showToast('Сейчас нельзя раздавать карту', 'warn');
+    setMobileDealMode(false);
+    return;
+  }
+  setMobileDealMode(true, targetIdx);
+  const targetName = targetIdx === 0 ? 'себе' : (gameState?.players?.find?.(p => p.idx === targetIdx)?.name || 'игроку');
+  setActionText(`Тапни по месту ${targetName}, чтобы выдать карту`);
 }
 
 function onDragStart(e) {
@@ -1613,6 +1769,7 @@ function hideAllRings() {
 
 // ─── Drop handlers ───
 function onDropToPlayer(playerIdx) {
+  setMobileDealMode(false);
   hideAllRings();
   if (!gameState) return;
   const phase = gameState.phase;
@@ -1643,6 +1800,7 @@ function onDropToPlayer(playerIdx) {
 }
 
 function onDropToDealer() {
+  setMobileDealMode(false);
   hideAllRings();
   if (!gameState) return;
   const phase = gameState.phase;
@@ -1679,6 +1837,7 @@ function enableDealerSelfDrop() {
 function handleDealPrompt(msg) {
   if (!gameState && msg.room) gameState = msg.room;
   renderGame();
+  if (isMobileUI()) setMobileDealMode(false);
   const { phase, targetIdx, msg: promptMsg } = msg;
   setStatus(promptMsg || 'Раздай карты', true);
   if (phase === 'dealer-first') {
@@ -2017,8 +2176,16 @@ window.onSpotifyIframeApiReady = (IFrameAPI) => {
   tryMountSpotifyEmbed();
 };
 
+window.addEventListener('resize', () => {
+  if (isMobileUI()) {
+    removeModePlayer();
+    setMobileDealMode(false);
+  }
+});
+
 function mountSpotifyPlayer(src, opts = {}) {
   removeModePlayer();
+  if (isMobileUI()) return;
   const wrap = document.createElement('div');
   wrap.id = 'modePlayerWrap';
   wrap.style.cssText = opts.style || 'position:fixed;bottom:20px;left:20px;z-index:10001;border-radius:12px;overflow:hidden;box-shadow:0 0 30px #7c5cfc;border:2px solid var(--accent);width:min(420px,calc(100vw - 40px));background:rgba(8,10,18,.82);backdrop-filter:blur(8px);';
@@ -2198,6 +2365,7 @@ function connectWs() {
   });
 }
 connectWs();
+if (isMobileUI()) document.body.classList.add('mobile-ui');
 
 sendToServer = function(msg) {
   const full = { ...msg, from: MY_TAB_ID, code: msg.code || myCode };
