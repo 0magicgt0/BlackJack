@@ -483,8 +483,8 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
   <div class="modal">
     <button class="modal-close-btn" onclick="closeModal('createModal')">✕</button>
     <div class="modal-title">Создать лобби</div>
-    <label class="form-label">Твоё имя</label>
-    <input class="name-input" id="createName" placeholder="Введи имя дилера" maxlength="20"/>
+    <label class="form-label">Введи свой Telegram</label>
+    <input class="name-input" id="createName" placeholder="@telegram" maxlength="32"/>
     <label class="form-label">Количество мест (включая тебя)</label>
     <div class="counter-row">
       <button class="counter-btn" onclick="changeCount(-1)">−</button>
@@ -504,8 +504,8 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
   <div class="modal">
     <button class="modal-close-btn" onclick="closeModal('joinModal')">✕</button>
     <div class="modal-title">Войти в лобби</div>
-    <label class="form-label">Твоё имя</label>
-    <input class="name-input" id="joinName" placeholder="Введи своё имя" maxlength="20"/>
+    <label class="form-label">Введи свой Telegram</label>
+    <input class="name-input" id="joinName" placeholder="@telegram" maxlength="32"/>
     <label class="form-label">Код лобби от дилера</label>
     <input class="join-input" id="joinCodeInput" placeholder="XXXX-XXXX" maxlength="9" oninput="formatJoinCode(this)"/>
     <button class="btn btn-primary" onclick="joinLobby()">
@@ -521,7 +521,7 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
     <div class="wait-title" id="waitTitle">Ожидание игроков</div>
     <div class="wait-sub" id="waitSub">Отправь код друзьям</div>
     <div class="code-block">
-      <input class="code-val" id="waitCodeInput" readonly value="Генерация ссылки..." style="font-size: 15px; letter-spacing: .05em; background: transparent; border: none; outline: none; width: 100%;"/>
+      <input class="code-val" id="waitCodeInput" readonly value="Генерация кода..." style="font-size: 15px; letter-spacing: .05em; background: transparent; border: none; outline: none; width: 100%;"/>
       <button class="code-copy-btn" onclick="copyCode()">Копировать</button>
     </div>
     <div class="player-list" id="playerList"></div>
@@ -1206,6 +1206,7 @@ function clientHandle(msg) {
       break;
 
     case 'DEAL_PROMPT':
+      playSound('deal');
       if (myRole === 'dealer') {
         gameState = msg.room || gameState;
         handleDealPrompt(msg);
@@ -1213,18 +1214,26 @@ function clientHandle(msg) {
       break;
 
     case 'GAME_STATE':
-      gameState = msg.room;
-      renderGame();
-      updateDeckCount(gameState.deckCount);
+      {
+        const prevTotalCards = getTotalCards(gameState);
+        gameState = msg.room;
+        const nextTotalCards = getTotalCards(gameState);
+        if (nextTotalCards > prevTotalCards || nextTotalCards > lastTotalCards) playSound('deal');
+        lastTotalCards = nextTotalCards;
+        renderGame();
+        updateDeckCount(gameState.deckCount);
+      }
       break;
 
     case 'PLAYER_TURN':
+      playSound('hit');
       gameState = msg.room || gameState;
       if (gameState) renderGame();
       handlePlayerTurn(msg);
       break;
 
     case 'DEALER_TURN':
+      playSound('stand');
       gameState = msg.room;
       renderGame();
       if (myRole === 'dealer') {
@@ -1246,6 +1255,7 @@ function clientHandle(msg) {
       break;
 
     case 'DEALER_HIT_PROMPT':
+      playSound('deal');
       gameState = msg.room || gameState;
       if (gameState) renderGame();
       if (myRole === 'dealer') {
@@ -1260,11 +1270,13 @@ function clientHandle(msg) {
 
     case 'ROUND_END':
       gameState = msg.room;
+      lastTotalCards = getTotalCards(gameState);
       renderGame();
       triggerRoundEnd(msg);
       break;
 
     case 'ERROR':
+      playSound('error');
       showToast(msg.msg, 'error');
       break;
   }
@@ -1330,7 +1342,7 @@ function joinLobby() {
 function showWaitingRoom() {
   { const el = document.getElementById('waitCodeInput'); if (el) el.value = myCode; }
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
+  document.getElementById('waitSub').textContent = 'Поделись кодом с друзьями';
   document.getElementById('dealerStartWrap').style.display = '';
   document.getElementById('playerWaitMsg').style.display = 'none';
   updateWaitingRoomFromStorage();
@@ -1765,18 +1777,22 @@ function showResults(msg) {
   const ri = document.getElementById('resultIcon');
 
   if (myResult === 'win') {
+    playSound('win');
     rt.textContent = '🎉 Ты победил!';
     ri.style.background = 'var(--green-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
   } else if (myResult === 'draw') {
+    playSound('draw');
     rt.textContent = '🤝 Ничья!';
     ri.style.background = 'var(--gold-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`;
   } else if (wins > 0 && myRole === 'dealer') {
+    playSound('lose');
     rt.textContent = 'Дилер победил!';
     ri.style.background = 'var(--accent-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`;
   } else {
+    playSound(wins > 0 ? 'lose' : 'win');
     rt.textContent = wins > 0 ? `${wins} победителей!` : 'Дилер победил!';
     ri.style.background = wins > 0 ? 'var(--green-bg)' : 'var(--accent-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${wins > 0 ? 'var(--green)' : 'var(--accent2)'}" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
@@ -2065,29 +2081,57 @@ window.addEventListener('storage', (e) => {
 // SOUND ENGINE
 // ══════════════════════════════════════════════
 const AC = typeof AudioContext !== 'undefined' ? new AudioContext() : null;
-function playSound(type) {
+function playTone(freq, freq2, dur, vol, wave = 'sine', delay = 0) {
   if (!AC) return;
   if (AC.state === 'suspended') AC.resume();
   const o = AC.createOscillator(), g = AC.createGain();
-  o.connect(g); g.connect(AC.destination);
-  const now = AC.currentTime;
+  o.type = wave;
+  o.connect(g);
+  g.connect(AC.destination);
+  const now = AC.currentTime + delay;
+  o.frequency.setValueAtTime(freq, now);
+  o.frequency.linearRampToValueAtTime(freq2 ?? freq, now + dur);
+  g.gain.setValueAtTime(Math.max(0.0001, vol), now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur + 0.05);
+  o.start(now);
+  o.stop(now + dur + 0.06);
+}
+function playSound(type) {
+  if (!AC) return;
   const sounds = {
-    click:{f:440,f2:520,dur:0.08,vol:0.1,type:'sine'},
-    deal:{f:320,f2:480,dur:0.12,vol:0.16,type:'triangle'},
-    win:{f:523,f2:659,dur:0.22,vol:0.18,type:'sine'},
-    error:{f:200,f2:150,dur:0.15,vol:0.12,type:'sawtooth'},
-    hit:{f:380,f2:520,dur:0.1,vol:0.14,type:'sine'},
-    stand:{f:480,f2:380,dur:0.1,vol:0.12,type:'sine'},
+    click:{f:420,f2:500,dur:0.045,vol:0.018,type:'sine'},
+    deal:{f:250,f2:340,dur:0.06,vol:0.028,type:'triangle'},
+    win:{f:523,f2:659,dur:0.11,vol:0.03,type:'sine'},
+    lose:{f:250,f2:180,dur:0.11,vol:0.026,type:'triangle'},
+    draw:{f:410,f2:430,dur:0.08,vol:0.022,type:'sine'},
+    error:{f:190,f2:150,dur:0.09,vol:0.024,type:'sawtooth'},
+    hit:{f:340,f2:430,dur:0.06,vol:0.024,type:'sine'},
+    stand:{f:430,f2:360,dur:0.06,vol:0.022,type:'sine'},
   };
   const s = sounds[type] || sounds.click;
-  o.type = s.type;
-  o.frequency.setValueAtTime(s.f, now);
-  o.frequency.linearRampToValueAtTime(s.f2, now + s.dur);
-  g.gain.setValueAtTime(s.vol, now);
-  g.gain.exponentialRampToValueAtTime(0.001, now + s.dur + 0.04);
-  o.start(now); o.stop(now + s.dur + 0.05);
+  if (type === 'win') {
+    playTone(523, 587, 0.08, 0.025, 'sine', 0);
+    playTone(659, 784, 0.11, 0.028, 'sine', 0.09);
+    return;
+  }
+  if (type === 'lose') {
+    playTone(280, 230, 0.09, 0.024, 'triangle', 0);
+    playTone(220, 170, 0.12, 0.022, 'triangle', 0.08);
+    return;
+  }
+  if (type === 'draw') {
+    playTone(392, 420, 0.07, 0.02, 'sine', 0);
+    playTone(420, 392, 0.07, 0.018, 'sine', 0.08);
+    return;
+  }
+  playTone(s.f, s.f2, s.dur, s.vol, s.type, 0);
 }
-document.addEventListener('click', () => playSound('click'), { once: true });
+document.addEventListener('pointerdown', () => playSound('click'), { once: true });
+let lastTotalCards = 0;
+function getTotalCards(room) {
+  if (!room?.players?.length) return 0;
+  return room.players.reduce((sum, p) => sum + ((p.hand && p.hand.length) || 0), 0);
+}
 
 // ══════════════════════════════════════════════
 // NETWORK PATCH (WebSocket transport + lobby fixes)
@@ -2186,7 +2230,7 @@ showWaitingRoom = function() {
   const input = document.getElementById('waitCodeInput');
   if (input) input.value = myCode;
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
+  document.getElementById('waitSub').textContent = 'Поделись кодом с друзьями';
   document.getElementById('dealerStartWrap').style.display = '';
   document.getElementById('playerWaitMsg').style.display = 'none';
   if (latestRoomState) updateWaitingRoom(latestRoomState);
