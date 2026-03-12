@@ -397,6 +397,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14
 }
 body.party-active .screen.active{animation:partyBg 0.5s linear infinite!important}
 
+
+/* PATCH V5 */
+html,body{-webkit-user-select:none;user-select:none}
+img,svg,button,a,.btn,.action-card,.counter-btn,.title-enter,.toggle-switch,.sun-wrap,.player-seat,.deck-pile{-webkit-user-drag:none;user-select:none}
+input,textarea{-webkit-user-select:none;user-select:none}
+.mode67-num{position:absolute;display:flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:900;color:rgba(255,255,255,.18);text-shadow:0 0 18px rgba(124,92,252,.22);pointer-events:auto;cursor:pointer;line-height:1;animation:mode67Float linear infinite;border-radius:16px;padding:.12em .2em;transition:transform .08s ease, opacity .12s ease}
+.mode67-num:hover{transform:scale(1.06)}
+.mode67-num.hit{transform:scale(.9);opacity:.3}
+.mode67-badge{position:fixed;top:18px;right:18px;z-index:10002;display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(16,18,29,.72);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);box-shadow:0 10px 30px rgba(0,0,0,.22);font:700 13px/1 var(--font);color:#fff}
+.mode67-badge.open{display:flex}
+.mode67-badge svg{opacity:.9}
+@keyframes mode67Float{0%{transform:translateX(110vw)}100%{transform:translateX(-25vw)}}
+
 </style>
 </head>
 <body>
@@ -484,7 +497,7 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
     <button class="modal-close-btn" onclick="closeModal('createModal')">✕</button>
     <div class="modal-title">Создать лобби</div>
     <label class="form-label">Введи свой Telegram</label>
-    <input class="name-input" id="createName" placeholder="@telegram" maxlength="32"/>
+    <input class="name-input" id="createName" placeholder="@telegram" maxlength="20"/>
     <label class="form-label">Количество мест (включая тебя)</label>
     <div class="counter-row">
       <button class="counter-btn" onclick="changeCount(-1)">−</button>
@@ -505,7 +518,7 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
     <button class="modal-close-btn" onclick="closeModal('joinModal')">✕</button>
     <div class="modal-title">Войти в лобби</div>
     <label class="form-label">Введи свой Telegram</label>
-    <input class="name-input" id="joinName" placeholder="@telegram" maxlength="32"/>
+    <input class="name-input" id="joinName" placeholder="@telegram" maxlength="20"/>
     <label class="form-label">Код лобби от дилера</label>
     <input class="join-input" id="joinCodeInput" placeholder="XXXX-XXXX" maxlength="9" oninput="formatJoinCode(this)"/>
     <button class="btn btn-primary" onclick="joinLobby()">
@@ -1206,7 +1219,6 @@ function clientHandle(msg) {
       break;
 
     case 'DEAL_PROMPT':
-      playSound('deal');
       if (myRole === 'dealer') {
         gameState = msg.room || gameState;
         handleDealPrompt(msg);
@@ -1214,26 +1226,18 @@ function clientHandle(msg) {
       break;
 
     case 'GAME_STATE':
-      {
-        const prevTotalCards = getTotalCards(gameState);
-        gameState = msg.room;
-        const nextTotalCards = getTotalCards(gameState);
-        if (nextTotalCards > prevTotalCards || nextTotalCards > lastTotalCards) playSound('deal');
-        lastTotalCards = nextTotalCards;
-        renderGame();
-        updateDeckCount(gameState.deckCount);
-      }
+      gameState = msg.room;
+      renderGame();
+      updateDeckCount(gameState.deckCount);
       break;
 
     case 'PLAYER_TURN':
-      playSound('hit');
       gameState = msg.room || gameState;
       if (gameState) renderGame();
       handlePlayerTurn(msg);
       break;
 
     case 'DEALER_TURN':
-      playSound('stand');
       gameState = msg.room;
       renderGame();
       if (myRole === 'dealer') {
@@ -1255,7 +1259,6 @@ function clientHandle(msg) {
       break;
 
     case 'DEALER_HIT_PROMPT':
-      playSound('deal');
       gameState = msg.room || gameState;
       if (gameState) renderGame();
       if (myRole === 'dealer') {
@@ -1270,13 +1273,11 @@ function clientHandle(msg) {
 
     case 'ROUND_END':
       gameState = msg.room;
-      lastTotalCards = getTotalCards(gameState);
       renderGame();
       triggerRoundEnd(msg);
       break;
 
     case 'ERROR':
-      playSound('error');
       showToast(msg.msg, 'error');
       break;
   }
@@ -1342,7 +1343,7 @@ function joinLobby() {
 function showWaitingRoom() {
   { const el = document.getElementById('waitCodeInput'); if (el) el.value = myCode; }
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись кодом с друзьями';
+  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
   document.getElementById('dealerStartWrap').style.display = '';
   document.getElementById('playerWaitMsg').style.display = 'none';
   updateWaitingRoomFromStorage();
@@ -1777,22 +1778,18 @@ function showResults(msg) {
   const ri = document.getElementById('resultIcon');
 
   if (myResult === 'win') {
-    playSound('win');
     rt.textContent = '🎉 Ты победил!';
     ri.style.background = 'var(--green-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
   } else if (myResult === 'draw') {
-    playSound('draw');
     rt.textContent = '🤝 Ничья!';
     ri.style.background = 'var(--gold-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`;
   } else if (wins > 0 && myRole === 'dealer') {
-    playSound('lose');
     rt.textContent = 'Дилер победил!';
     ri.style.background = 'var(--accent-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`;
   } else {
-    playSound(wins > 0 ? 'lose' : 'win');
     rt.textContent = wins > 0 ? `${wins} победителей!` : 'Дилер победил!';
     ri.style.background = wins > 0 ? 'var(--green-bg)' : 'var(--accent-bg)';
     ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${wins > 0 ? 'var(--green)' : 'var(--accent2)'}" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
@@ -2081,57 +2078,29 @@ window.addEventListener('storage', (e) => {
 // SOUND ENGINE
 // ══════════════════════════════════════════════
 const AC = typeof AudioContext !== 'undefined' ? new AudioContext() : null;
-function playTone(freq, freq2, dur, vol, wave = 'sine', delay = 0) {
+function playSound(type) {
   if (!AC) return;
   if (AC.state === 'suspended') AC.resume();
   const o = AC.createOscillator(), g = AC.createGain();
-  o.type = wave;
-  o.connect(g);
-  g.connect(AC.destination);
-  const now = AC.currentTime + delay;
-  o.frequency.setValueAtTime(freq, now);
-  o.frequency.linearRampToValueAtTime(freq2 ?? freq, now + dur);
-  g.gain.setValueAtTime(Math.max(0.0001, vol), now);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + dur + 0.05);
-  o.start(now);
-  o.stop(now + dur + 0.06);
-}
-function playSound(type) {
-  if (!AC) return;
+  o.connect(g); g.connect(AC.destination);
+  const now = AC.currentTime;
   const sounds = {
-    click:{f:420,f2:500,dur:0.045,vol:0.018,type:'sine'},
-    deal:{f:250,f2:340,dur:0.06,vol:0.028,type:'triangle'},
-    win:{f:523,f2:659,dur:0.11,vol:0.03,type:'sine'},
-    lose:{f:250,f2:180,dur:0.11,vol:0.026,type:'triangle'},
-    draw:{f:410,f2:430,dur:0.08,vol:0.022,type:'sine'},
-    error:{f:190,f2:150,dur:0.09,vol:0.024,type:'sawtooth'},
-    hit:{f:340,f2:430,dur:0.06,vol:0.024,type:'sine'},
-    stand:{f:430,f2:360,dur:0.06,vol:0.022,type:'sine'},
+    click:{f:440,f2:520,dur:0.08,vol:0.1,type:'sine'},
+    deal:{f:320,f2:480,dur:0.12,vol:0.16,type:'triangle'},
+    win:{f:523,f2:659,dur:0.22,vol:0.18,type:'sine'},
+    error:{f:200,f2:150,dur:0.15,vol:0.12,type:'sawtooth'},
+    hit:{f:380,f2:520,dur:0.1,vol:0.14,type:'sine'},
+    stand:{f:480,f2:380,dur:0.1,vol:0.12,type:'sine'},
   };
   const s = sounds[type] || sounds.click;
-  if (type === 'win') {
-    playTone(523, 587, 0.08, 0.025, 'sine', 0);
-    playTone(659, 784, 0.11, 0.028, 'sine', 0.09);
-    return;
-  }
-  if (type === 'lose') {
-    playTone(280, 230, 0.09, 0.024, 'triangle', 0);
-    playTone(220, 170, 0.12, 0.022, 'triangle', 0.08);
-    return;
-  }
-  if (type === 'draw') {
-    playTone(392, 420, 0.07, 0.02, 'sine', 0);
-    playTone(420, 392, 0.07, 0.018, 'sine', 0.08);
-    return;
-  }
-  playTone(s.f, s.f2, s.dur, s.vol, s.type, 0);
+  o.type = s.type;
+  o.frequency.setValueAtTime(s.f, now);
+  o.frequency.linearRampToValueAtTime(s.f2, now + s.dur);
+  g.gain.setValueAtTime(s.vol, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + s.dur + 0.04);
+  o.start(now); o.stop(now + s.dur + 0.05);
 }
-document.addEventListener('pointerdown', () => playSound('click'), { once: true });
-let lastTotalCards = 0;
-function getTotalCards(room) {
-  if (!room?.players?.length) return 0;
-  return room.players.reduce((sum, p) => sum + ((p.hand && p.hand.length) || 0), 0);
-}
+document.addEventListener('click', () => playSound('click'), { once: true });
 
 // ══════════════════════════════════════════════
 // NETWORK PATCH (WebSocket transport + lobby fixes)
@@ -2230,7 +2199,7 @@ showWaitingRoom = function() {
   const input = document.getElementById('waitCodeInput');
   if (input) input.value = myCode;
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись кодом с друзьями';
+  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
   document.getElementById('dealerStartWrap').style.display = '';
   document.getElementById('playerWaitMsg').style.display = 'none';
   if (latestRoomState) updateWaitingRoom(latestRoomState);
@@ -2325,6 +2294,246 @@ copyCode = function() {
     sunAvatarEl.onerror = function() { this.src = originalSrc; };
     sunAvatarEl.src = '/avatar.jpg';
   }
+})();
+
+
+// PATCH V5 - UI polish, button sounds, mode 67, svg-only icons
+(function(){
+  const style = document.createElement('style');
+  style.textContent = '.code-val::selection,.name-input::selection,.join-input::selection{background:transparent;color:inherit}';
+  document.head.appendChild(style);
+
+  const tgLabels = document.querySelectorAll('#createModal .form-label, #joinModal .form-label');
+  if (tgLabels[0]) tgLabels[0].textContent = 'Введи свой Telegram';
+  if (tgLabels[2]) tgLabels[2].textContent = 'Введи свой Telegram';
+  const createInput = document.getElementById('createName');
+  const joinInput = document.getElementById('joinName');
+  if (createInput) createInput.placeholder = '@telegram';
+  if (joinInput) joinInput.placeholder = '@telegram';
+  const waitCodeInput = document.getElementById('waitCodeInput');
+  if (waitCodeInput && /ссылк/i.test(waitCodeInput.value)) waitCodeInput.value = 'Генерация кода...';
+
+  const originalPlaySound = playSound;
+  let lastUiClickAt = 0;
+  playSound = function(type) {
+    const nowMs = performance.now();
+    if (type === 'click') {
+      if (nowMs - lastUiClickAt < 55) return;
+      lastUiClickAt = nowMs;
+    }
+    if (!AC) return;
+    if (AC.state === 'suspended') AC.resume();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.connect(g); g.connect(AC.destination);
+    const now = AC.currentTime;
+    const sounds = {
+      click:{f:440,f2:520,dur:0.08,vol:0.06,type:'sine'},
+      deal:{f:310,f2:470,dur:0.11,vol:0.09,type:'triangle'},
+      win:{f:523,f2:784,dur:0.24,vol:0.08,type:'sine'},
+      lose:{f:240,f2:170,dur:0.22,vol:0.065,type:'sine'},
+      draw:{f:420,f2:470,dur:0.16,vol:0.06,type:'triangle'},
+      error:{f:200,f2:150,dur:0.14,vol:0.065,type:'sawtooth'},
+      hit:{f:380,f2:520,dur:0.09,vol:0.07,type:'sine'},
+      stand:{f:480,f2:380,dur:0.09,vol:0.06,type:'sine'}
+    };
+    const s = sounds[type] || sounds.click;
+    o.type = s.type;
+    o.frequency.setValueAtTime(s.f, now);
+    o.frequency.linearRampToValueAtTime(s.f2, now + s.dur);
+    g.gain.setValueAtTime(s.vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + s.dur + 0.04);
+    o.start(now); o.stop(now + s.dur + 0.05);
+  };
+
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('button,.btn,.action-card,.counter-btn,.title-enter,.toggle-switch,.modal-close-btn,.p-action-btn,.code-copy-btn,.sun-wrap,[onclick]');
+    if (el) playSound('click');
+  }, true);
+
+  const oldHandleDealPrompt = handleDealPrompt;
+  handleDealPrompt = function(msg){ playSound('deal'); return oldHandleDealPrompt(msg); };
+
+  const oldSendPlayerAction = sendPlayerAction;
+  sendPlayerAction = function(action){ playSound(action === 'hit' ? 'hit' : 'stand'); return oldSendPlayerAction(action); };
+
+  const crownIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18h18"/><path d="M4 18l2-9 6 5 6-5 2 9"/></svg>';
+  const botIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="8" width="10" height="9" rx="2"/><path d="M12 4v4"/><path d="M9 12h.01"/><path d="M15 12h.01"/></svg>';
+
+  showResults = function(msg) {
+    const { room, dealerScore, dealerBust } = msg;
+    const rows = document.getElementById('resultRows');
+    rows.innerHTML = `<div class="result-row rr-dealer">
+      <div class="rr-name">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+        Дилер (${escHtml(room.players[0]?.name || 'Дилер')})
+      </div>
+      <div class="rr-right">
+        <div class="rr-score">${dealerScore}</div>
+        ${dealerBust ? '<span class="rr-tag tag-bust">BUST</span>' : ''}
+      </div>
+    </div>`;
+
+    let wins = 0, myResult = '';
+    for (let i = 1; i < room.players.length; i++) {
+      const p = room.players[i];
+      const ps = calcScore(p.hand);
+      const isWin = p.result === 'win', isDraw = p.result === 'draw', isBust = p.status === 'bust';
+      if (isWin) wins++;
+      if (p.tabId === MY_TAB_ID) myResult = p.result;
+      rows.innerHTML += `<div class="result-row ${isWin ? 'rr-win' : isDraw ? 'rr-draw' : 'rr-lose'}">
+        <div class="rr-name">
+          ${p.tabId === MY_TAB_ID ? `<span style="display:inline-flex;align-items:center;gap:6px;color:var(--gold)">${crownIcon}<span></span></span>` : ''}${escHtml(p.name)}${p.isBot ? `<span style="display:inline-flex;align-items:center;gap:6px;color:var(--text3);margin-left:6px">${botIcon}</span>` : ''}
+        </div>
+        <div class="rr-right">
+          <div class="rr-score">${ps}</div>
+          <span class="rr-tag ${isWin ? 'tag-win' : isDraw ? 'tag-draw' : isBust ? 'tag-bust' : 'tag-lose'}">${isWin ? 'WIN' : isDraw ? 'DRAW' : isBust ? 'BUST' : 'LOSE'}</span>
+        </div>
+      </div>`;
+    }
+
+    const rt = document.getElementById('resultTitle');
+    const ri = document.getElementById('resultIcon');
+    if (myResult === 'win') {
+      rt.textContent = 'Ты победил!';
+      ri.style.background = 'var(--green-bg)';
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+      playSound('win');
+    } else if (myResult === 'draw') {
+      rt.textContent = 'Ничья!';
+      ri.style.background = 'var(--gold-bg)';
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M8 12h8"/><path d="M12 8v8"/></svg>`;
+      playSound('draw');
+    } else if (wins > 0 && myRole === 'dealer') {
+      rt.textContent = 'Дилер победил!';
+      ri.style.background = 'var(--accent-bg)';
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`;
+      playSound('win');
+    } else {
+      rt.textContent = wins > 0 ? `${wins} победителей!` : 'Дилер победил!';
+      ri.style.background = wins > 0 ? 'var(--green-bg)' : 'var(--accent-bg)';
+      ri.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${wins > 0 ? 'var(--green)' : 'var(--accent2)'}" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+      playSound(myRole === 'dealer' ? 'lose' : 'win');
+    }
+      if (!myResult && myRole !== 'dealer') playSound('lose');
+    document.getElementById('resultOverlay').classList.add('open');
+  };
+
+  MALAY_PHRASES.splice(0, MALAY_PHRASES.length,
+    'здарова, я малой ксэр', 'я лёха, ну ты понял', 'нет карты - нет жизни',
+    'раздай мне туза, братан', 'я всегда выигрываю, это факт', 'ставлю на 21, как обычно',
+    'дилер - мой лучший враг', 'кто не рискует тот не пьёт чай', 'MaloyCSer в деле',
+    'блекджек или домой', 'я знаю где туз, не скажу', 'фарт со мной сегодня, бро'
+  );
+
+  const cloudsBg = document.getElementById('cloudsBg');
+  const baseCloudMarkup = cloudsBg ? cloudsBg.innerHTML : '';
+  let mode67Score = 0;
+  let mode67Spawner = null;
+  let mode67Badge = document.getElementById('mode67Badge');
+  if (!mode67Badge) {
+    mode67Badge = document.createElement('div');
+    mode67Badge.id = 'mode67Badge';
+    mode67Badge.className = 'mode67-badge';
+    mode67Badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h12l-8 16"/><path d="M7 10h10"/></svg><span id="mode67ScoreText">67 score: 0</span>';
+    document.body.appendChild(mode67Badge);
+  }
+  const mode67ScoreText = () => document.getElementById('mode67ScoreText');
+
+  function refresh67Score() {
+    const el = mode67ScoreText();
+    if (el) el.textContent = `67 score: ${mode67Score}`;
+  }
+  function spawn67() {
+    if (!partyActive || !cloudsBg) return;
+    const n = document.createElement('button');
+    n.type = 'button';
+    n.className = 'mode67-num';
+    n.textContent = '67';
+    const size = 34 + Math.random() * 48;
+    n.style.fontSize = size + 'px';
+    n.style.top = (Math.random() * 86) + '%';
+    n.style.animationDuration = (8 + Math.random() * 9) + 's';
+    n.style.opacity = (0.28 + Math.random() * 0.28).toFixed(2);
+    n.addEventListener('click', (e) => {
+      e.stopPropagation();
+      mode67Score += 67;
+      refresh67Score();
+      playSound('click');
+      n.classList.add('hit');
+      setTimeout(() => n.remove(), 80);
+    });
+    n.addEventListener('animationend', () => n.remove());
+    cloudsBg.appendChild(n);
+  }
+
+  deactivatePartyMode = function() {
+    partyActive = false;
+    sunClicks = 0;
+    stopAvatarBubbles();
+    document.body.classList.remove('party-active');
+    document.getElementById('partyOverlay')?.remove();
+    document.getElementById('confettiCanvas')?.remove();
+    document.getElementById('ytPlayerWrap')?.remove();
+    document.querySelectorAll('[id^="partyTxt"]').forEach(e => e.remove());
+    if (mode67Spawner) clearInterval(mode67Spawner);
+    mode67Spawner = null;
+    mode67Score = 0;
+    refresh67Score();
+    mode67Badge.classList.remove('open');
+    if (cloudsBg) cloudsBg.innerHTML = baseCloudMarkup;
+    if (sunSvg) sunSvg.style.display = 'block';
+    if (sunAvatar) sunAvatar.style.display = 'none';
+    if (sunCounter) {
+      sunCounter.textContent = '0';
+      sunCounter.classList.remove('show');
+    }
+    showToast('67 mode выключен', '');
+  };
+
+  activatePartyMode = function() {
+    partyActive = true;
+    mode67Score = 0;
+    refresh67Score();
+    mode67Badge.classList.add('open');
+    if (sunCounter) sunCounter.classList.remove('show');
+    if (cloudsBg) cloudsBg.innerHTML = '';
+    mode67Spawner = setInterval(spawn67, 420);
+    for (let i = 0; i < 12; i++) setTimeout(spawn67, i * 90);
+    showToast('67 mode активирован', 'success');
+  };
+
+  function bindNewSunClick() {
+    const old = document.getElementById('sunWrap');
+    if (!old) return;
+    const clone = old.cloneNode(true);
+    old.parentNode.replaceChild(clone, old);
+    sunWrap = clone;
+    sunSvg = document.getElementById('sunSvg');
+    sunAvatar = document.getElementById('sunAvatar');
+    sunCounter = document.getElementById('sunCounter');
+    sunWrap.addEventListener('click', () => {
+      playSound('click');
+      if (partyActive) {
+        deactivatePartyMode();
+        return;
+      }
+      sunClicks++;
+      sunCounter.textContent = String(sunClicks);
+      sunCounter.classList.add('show');
+      sunSvg.classList.remove('sun-clicked');
+      void sunSvg.offsetWidth;
+      sunSvg.classList.add('sun-clicked');
+      if (sunClicks === SUN_PHOTO_THRESHOLD) {
+        sunSvg.style.display = 'none';
+        sunAvatar.style.display = 'flex';
+        sunCounter.classList.remove('show');
+        showToast('MaloyCSer mode activated', 'success');
+        startAvatarBubbles();
+      }
+      if (sunClicks === SUN_PARTY_THRESHOLD && !partyActive) activatePartyMode();
+    });
+  }
+  bindNewSunClick();
 })();
 
 </script>
