@@ -402,12 +402,6 @@ body.party-active .screen.active{animation:partyBg 0.5s linear infinite!importan
 html,body{-webkit-user-select:none;user-select:none}
 img,svg,button,a,.btn,.action-card,.counter-btn,.title-enter,.toggle-switch,.sun-wrap,.player-seat,.deck-pile{-webkit-user-drag:none;user-select:none}
 input,textarea{-webkit-user-select:none;user-select:none}
-.mode67-num{position:absolute;display:flex;align-items:center;justify-content:center;font-family:var(--font);font-weight:900;color:rgba(255,255,255,.18);text-shadow:0 0 18px rgba(124,92,252,.22);pointer-events:auto;cursor:pointer;line-height:1;animation:mode67Float linear infinite;border-radius:16px;padding:.12em .2em;transition:transform .08s ease, opacity .12s ease}
-.mode67-num:hover{transform:scale(1.06)}
-.mode67-num.hit{transform:scale(.9);opacity:.3}
-.mode67-badge{position:fixed;top:18px;right:18px;z-index:10002;display:none;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(16,18,29,.72);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.09);box-shadow:0 10px 30px rgba(0,0,0,.22);font:700 13px/1 var(--font);color:#fff}
-.mode67-badge.open{display:flex}
-.mode67-badge svg{opacity:.9}
 @keyframes mode67Float{0%{transform:translateX(110vw)}100%{transform:translateX(-25vw)}}
 
 </style>
@@ -2425,115 +2419,6 @@ copyCode = function() {
     'блекджек или домой', 'я знаю где туз, не скажу', 'фарт со мной сегодня, бро'
   );
 
-  const cloudsBg = document.getElementById('cloudsBg');
-  const baseCloudMarkup = cloudsBg ? cloudsBg.innerHTML : '';
-  let mode67Score = 0;
-  let mode67Spawner = null;
-  let mode67Badge = document.getElementById('mode67Badge');
-  if (!mode67Badge) {
-    mode67Badge = document.createElement('div');
-    mode67Badge.id = 'mode67Badge';
-    mode67Badge.className = 'mode67-badge';
-    mode67Badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4h12l-8 16"/><path d="M7 10h10"/></svg><span id="mode67ScoreText">67 score: 0</span>';
-    document.body.appendChild(mode67Badge);
-  }
-  const mode67ScoreText = () => document.getElementById('mode67ScoreText');
-
-  function refresh67Score() {
-    const el = mode67ScoreText();
-    if (el) el.textContent = `67 score: ${mode67Score}`;
-  }
-  function spawn67() {
-    if (!partyActive || !cloudsBg) return;
-    const n = document.createElement('button');
-    n.type = 'button';
-    n.className = 'mode67-num';
-    n.textContent = '67';
-    const size = 34 + Math.random() * 48;
-    n.style.fontSize = size + 'px';
-    n.style.top = (Math.random() * 86) + '%';
-    n.style.animationDuration = (8 + Math.random() * 9) + 's';
-    n.style.opacity = (0.28 + Math.random() * 0.28).toFixed(2);
-    n.addEventListener('click', (e) => {
-      e.stopPropagation();
-      mode67Score += 67;
-      refresh67Score();
-      playSound('click');
-      n.classList.add('hit');
-      setTimeout(() => n.remove(), 80);
-    });
-    n.addEventListener('animationend', () => n.remove());
-    cloudsBg.appendChild(n);
-  }
-
-  deactivatePartyMode = function() {
-    partyActive = false;
-    sunClicks = 0;
-    stopAvatarBubbles();
-    document.body.classList.remove('party-active');
-    document.getElementById('partyOverlay')?.remove();
-    document.getElementById('confettiCanvas')?.remove();
-    document.getElementById('ytPlayerWrap')?.remove();
-    document.querySelectorAll('[id^="partyTxt"]').forEach(e => e.remove());
-    if (mode67Spawner) clearInterval(mode67Spawner);
-    mode67Spawner = null;
-    mode67Score = 0;
-    refresh67Score();
-    mode67Badge.classList.remove('open');
-    if (cloudsBg) cloudsBg.innerHTML = baseCloudMarkup;
-    if (sunSvg) sunSvg.style.display = 'block';
-    if (sunAvatar) sunAvatar.style.display = 'none';
-    if (sunCounter) {
-      sunCounter.textContent = '0';
-      sunCounter.classList.remove('show');
-    }
-    showToast('67 mode выключен', '');
-  };
-
-  activatePartyMode = function() {
-    partyActive = true;
-    mode67Score = 0;
-    refresh67Score();
-    mode67Badge.classList.add('open');
-    if (sunCounter) sunCounter.classList.remove('show');
-    if (cloudsBg) cloudsBg.innerHTML = '';
-    mode67Spawner = setInterval(spawn67, 420);
-    for (let i = 0; i < 12; i++) setTimeout(spawn67, i * 90);
-    showToast('67 mode активирован', 'success');
-  };
-
-  function bindNewSunClick() {
-    const old = document.getElementById('sunWrap');
-    if (!old) return;
-    const clone = old.cloneNode(true);
-    old.parentNode.replaceChild(clone, old);
-    sunWrap = clone;
-    sunSvg = document.getElementById('sunSvg');
-    sunAvatar = document.getElementById('sunAvatar');
-    sunCounter = document.getElementById('sunCounter');
-    sunWrap.addEventListener('click', () => {
-      playSound('click');
-      if (partyActive) {
-        deactivatePartyMode();
-        return;
-      }
-      sunClicks++;
-      sunCounter.textContent = String(sunClicks);
-      sunCounter.classList.add('show');
-      sunSvg.classList.remove('sun-clicked');
-      void sunSvg.offsetWidth;
-      sunSvg.classList.add('sun-clicked');
-      if (sunClicks === SUN_PHOTO_THRESHOLD) {
-        sunSvg.style.display = 'none';
-        sunAvatar.style.display = 'flex';
-        sunCounter.classList.remove('show');
-        showToast('MaloyCSer mode activated', 'success');
-        startAvatarBubbles();
-      }
-      if (sunClicks === SUN_PARTY_THRESHOLD && !partyActive) activatePartyMode();
-    });
-  }
-  bindNewSunClick();
 })();
 
 </script>
