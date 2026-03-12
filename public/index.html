@@ -1200,6 +1200,7 @@ function clientHandle(msg) {
       break;
 
     case 'GAME_START':
+      latestDealPrompt = null;
       gameState = msg.room;
       startLoadingThenGame();
       break;
@@ -1300,14 +1301,6 @@ function changeCount(d) {
 }
 function formatJoinCode(el) {
   let v = el.value.trim();
-  // Try to extract code from a pasted URL
-  const match = v.match(/[?&]join=([A-Z0-9]{4}-[A-Z0-9]{4})/i);
-  if (match && match[1]) {
-    el.value = match[1].toUpperCase();
-    return;
-  }
-
-  // Otherwise, format as typed
   v = v.replace(/[^A-Z0-9-]/gi, '').toUpperCase();
   if (v.length > 4 && v.charAt(4) !== '-') v = v.slice(0,4) + '-' + v.slice(4);
   el.value = v.slice(0, 9);
@@ -1335,7 +1328,7 @@ function joinLobby() {
 
 // ─── Waiting room ───
 function showWaitingRoom() {
-  document.getElementById('waitCode').textContent = myCode;
+  { const el = document.getElementById('waitCodeInput'); if (el) el.value = myCode; }
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
   document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
   document.getElementById('dealerStartWrap').style.display = '';
@@ -1346,7 +1339,7 @@ function showWaitingRoom() {
 }
 
 function showWaitingRoomPlayer(room) {
-  document.getElementById('waitCode').textContent = myCode;
+  { const el = document.getElementById('waitCodeInput'); if (el) el.value = myCode; }
   document.getElementById('waitTitle').textContent = 'Вы в лобби!';
   document.getElementById('waitSub').textContent = 'Ожидайте начала игры дилером';
   document.getElementById('dealerStartWrap').style.display = 'none';
@@ -1439,6 +1432,9 @@ function startLoadingThenGame() {
   setTimeout(() => {
     initGameUI();
     showScreen('screen-game');
+    if (myRole === 'dealer' && latestDealPrompt && latestDealPrompt.phase) {
+      handleDealPrompt(latestDealPrompt);
+    }
   }, delay + 700);
 }
 
@@ -2187,11 +2183,10 @@ joinLobby = function() {
 };
 
 showWaitingRoom = function() {
-  const shareUrl = `${location.origin}${location.pathname}?join=${encodeURIComponent(myCode)}`;
   const input = document.getElementById('waitCodeInput');
-  if (input) input.value = shareUrl;
+  if (input) input.value = myCode;
   document.getElementById('waitTitle').textContent = 'Лобби создано!';
-  document.getElementById('waitSub').textContent = 'Поделись ссылкой или кодом с игроками';
+  document.getElementById('waitSub').textContent = 'Поделись кодом с игроками';
   document.getElementById('dealerStartWrap').style.display = '';
   document.getElementById('playerWaitMsg').style.display = 'none';
   if (latestRoomState) updateWaitingRoom(latestRoomState);
@@ -2274,21 +2269,12 @@ backToLobby = function() {
 
 copyCode = function() {
   const input = document.getElementById('waitCodeInput');
-  const value = input?.value || myCode;
+  const value = (input?.value || myCode || '').toUpperCase();
   navigator.clipboard.writeText(value).catch(() => {});
-  showToast('Ссылка скопирована!', 'success');
+  showToast('Код лобби скопирован!', 'success');
 };
 
-(function initInviteLinkAndAvatar() {
-  const params = new URLSearchParams(location.search);
-  const join = params.get('join');
-  if (join) {
-    const el = document.getElementById('joinCodeInput');
-    if (el) {
-      el.value = join.toUpperCase();
-      formatJoinCode(el);
-    }
-  }
+(function initAvatarFix() {
   const sunAvatarEl = document.getElementById('sunAvatar');
   if (sunAvatarEl) {
     const originalSrc = sunAvatarEl.getAttribute('src');
